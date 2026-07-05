@@ -1,0 +1,37 @@
+ADRIAN — USER PROFILE
+===================
+
+Full Name: Adrian Kato
+Age: 20
+Year: Second year
+Major: Computer Science
+University: NUS
+Specialization interest: AI/ML Research
+
+--- BACKGROUND ---
+Adrian is a CS student with a genuine passion for AI and machine learning research. He's not the stereotypical antisocial programmer — he's personable and curious, interested in people as much as systems. He met Shiori early in the semester through a shared module and they bonded quickly over research interests.
+
+He went to the same secondary school as Yuki but they drifted apart when they ended up in different JC tracks. There's a comfortable history there — the kind where you can pick up a conversation after months without it being awkward.
+
+He met Hiyori through Shiori. He didn't think much of it at first. That has changed.
+
+--- PERSONALITY (for Gemma to use when NPCs reference him) ---
+- Genuinely curious — asks questions and means them
+- Tends to be quiet in groups but engages well one-on-one
+- Remembers details people mention, sometimes without realizing it
+- Can get absorbed in his work and occasionally loses track of time (this is relevant — he has been late before)
+- Not naturally smooth or performative — his sincerity can read as awkward but it's real
+- Has opinions about things and will share them if asked
+- Kind to people in service roles, which Hiyori has noticed
+
+--- THINGS THE NPCS KNOW ABOUT ADRIAN ---
+Shiori knows:
+- His research interests (AI/ML, has been talking about a translation model project)
+- That he gets absorbed in work and sometimes forgets to text back
+- That he's been asking about Hiyori more than casually
+- That he is more emotionally aware than he looks
+
+Yuki knows:
+- His secondary school self — earnest, a bit nerdy, part of the same friend group
+- That he has changed but not fundamentally
+- His coffee order from secondary school (black, no sugar) — she still remembers this and finds it funny that she does

@@ -1,0 +1,466 @@
+{
+  "events": [
+    {
+      "id": "same_class",
+      "title": "Surprise Classmate",
+      "description": "You walk into your elective lecture and realize Hiyori is already seated. Apparently she needed science credits and picked the same module. She looks up, blinks, and says 'oh. it's you.'",
+      "stage_required": "stranger",
+      "affection_required": 0,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "randomized_details": {
+        "module_options": ["ES1000 Environmental Studies", "SP1541 Exploring Science", "GEN2001 Genes and Society"],
+        "location_options": ["LT27", "Science faculty lecture hall", "CLB lecture theatre"]
+      },
+      "player_action_prompt": "You're now in the same lecture. What do you do?",
+      "affection_outcomes": {
+        "high": "Offer to share notes or sit nearby without making it weird",
+        "mid": "Acknowledge her and focus on the lecture",
+        "low": "Make a big deal of it or ignore her completely"
+      }
+    },
+    {
+      "id": "met_with_friends_public",
+      "title": "Coincidence at [Location]",
+      "description": "You run into Hiyori together with Shiori while [activity]. The encounter lasts longer than any of you planned.",
+      "stage_required": "stranger",
+      "affection_required": 0,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "randomized_details": {
+        "location_options": ["on the MRT heading to Clementi", "at the bus stop outside UTown", "at a bubble tea place near Clementi Mall", "at a 7-Eleven near campus at 11pm"],
+        "activity_options": ["waiting for the same bus", "queuing for the same drink", "seated nearby on the train"]
+      },
+      "player_action_prompt": "The three of you end up talking for a while. What do you talk to Hiyori about?",
+      "affection_outcomes": {
+        "high": "Ask about something she's interested in and actually engage with her answer",
+        "mid": "Keep it light and friendly",
+        "low": "Dominate the conversation or barely acknowledge her"
+      }
+    },
+    {
+      "id": "met_alone_brief",
+      "title": "Just the Two of You",
+      "description": "You run into Hiyori alone — no Shiori, no buffer. She's at [location] by herself. She notices you first.",
+      "stage_required": "acquaintance",
+      "affection_required": 20,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "randomized_details": {
+        "location_options": [
+          "the mixed rice stall near Science block",
+          "the library Level 5 quiet zone",
+          "the UTown lawn with her laptop",
+          "a convenience store near her hostel at 10pm",
+          "waiting alone at a bus stop in light rain"
+        ]
+      },
+      "player_action_prompt": "She's alone. It's just you two. What do you say?",
+      "affection_outcomes": {
+        "high": "Join her naturally, ask something genuine, don't overstay",
+        "mid": "Say hi, chat briefly, leave when it feels right",
+        "low": "Make it awkward, overstay, or don't say anything at all"
+      }
+    },
+    {
+      "id": "orientation_committee",
+      "title": "Orientation Planning Committee",
+      "description": "You've both somehow ended up on the planning committee for a faculty orientation event. You'll be working together across several meetings over the next week.",
+      "stage_required": "stranger",
+      "affection_required": 0,
+      "type": "extended_event",
+      "duration_days": 7,
+      "player_action_prompt": "First committee meeting. You're assigned to the same sub-team as Hiyori. How do you approach working with her?",
+      "affection_outcomes": {
+        "high": "Pull your weight, be organized, let her lead where she wants to",
+        "mid": "Do your part, be pleasant",
+        "low": "Slack off, be disorganized, or try too hard to impress"
+      },
+      "notes": "Active event. Sub-events fire preferentially over the 7-day window; unrelated events can still occur but less frequently.",
+      "sub_events": [
+        {
+          "id": "orientation_committee_venue_scouting",
+          "day_offset": "2-3",
+          "description": "The committee splits into pairs to scout venues. You end up paired with Hiyori, walking between three possible faculty halls with a clipboard neither of you asked for.",
+          "player_action_prompt": "It's just the two of you scouting venues for an hour. What do you talk about between checklist items?",
+          "affection_outcomes": {
+            "high": "Balance the task with genuine conversation, let silences be comfortable rather than awkward",
+            "mid": "Stick mostly to the task, light small talk",
+            "low": "Either ignore her or talk over the task entirely"
+          }
+        },
+        {
+          "id": "orientation_committee_late_meeting",
+          "day_offset": "4-5",
+          "description": "A planning meeting runs late — everyone else trickles out, but you and Hiyori stay behind finishing the budget sheet.",
+          "player_action_prompt": "It's just the two of you finishing up. The room is quieter than usual. What do you do?",
+          "affection_outcomes": {
+            "high": "Work efficiently together, then let one small personal question slip in naturally",
+            "mid": "Finish the task, keep things professional",
+            "low": "Rush off immediately or make the moment feel forced"
+          }
+        },
+        {
+          "id": "orientation_committee_disagreement",
+          "day_offset": "5-6",
+          "description": "You and Hiyori disagree on how to run one of the orientation activities. Nothing dramatic, but the rest of the committee is watching how it plays out.",
+          "player_action_prompt": "You two see this differently. How do you handle the disagreement?",
+          "affection_outcomes": {
+            "high": "Hear her out fully, find a compromise, don't need to be right",
+            "mid": "Concede quickly just to avoid conflict",
+            "low": "Push your view and dismiss hers in front of others"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cultural_show",
+      "title": "Night of the Cultural Production Show",
+      "description": "NUS Cultural Night. Hiyori is in the main cast — she's been rehearsing for weeks. You somehow ended up volunteering for backstage crew (lights/props). You'll see a side of her most people don't see: nervous, focused, completely in it.",
+      "stage_required": "acquaintance",
+      "affection_required": 25,
+      "type": "extended_event",
+      "duration_days": 3,
+      "player_action_prompt": "You're backstage before the show. She's going over her lines quietly by herself. Do you say anything?",
+      "affection_outcomes": {
+        "high": "Say something genuine and low-pressure — not 'you'll be amazing' but something that shows you see her",
+        "mid": "Wish her luck simply",
+        "low": "Say something performatively supportive or say nothing"
+      },
+      "sub_events": [
+        {
+          "id": "cultural_show_rehearsal",
+          "day_offset": "1",
+          "description": "Final dress rehearsal. Hiyori flubs a line twice and looks visibly frustrated with herself during the break.",
+          "player_action_prompt": "She's frustrated and trying to hide it. What do you do?",
+          "affection_outcomes": {
+            "high": "Say something light to break the tension without dismissing how she feels",
+            "mid": "Give her space, don't say much",
+            "low": "Point out the mistake or make it a bigger deal than it is"
+          }
+        },
+        {
+          "id": "cultural_show_post_show",
+          "day_offset": "2",
+          "description": "After the show, backstage. She comes offstage still buzzing, adrenaline high, makeup slightly smudged from the lights.",
+          "player_action_prompt": "She's still riding the high of the performance. This is a key moment. What do you say?",
+          "affection_outcomes": {
+            "high": "Match her energy, be specific about what you actually noticed during the show",
+            "mid": "Congratulate her simply",
+            "low": "Be distracted, generic, or make it about your own night backstage"
+          }
+        }
+      ]
+    },
+    {
+      "id": "group_project_week",
+      "title": "The Group Project From Hell",
+      "description": "You and Hiyori somehow get assigned to the same interdisciplinary group project — a mandatory module requirement pairing CS and Life Sciences students. Two other groupmates are functionally useless. It's you two carrying it for the week.",
+      "stage_required": "acquaintance",
+      "affection_required": 15,
+      "type": "extended_event",
+      "duration_days": 6,
+      "player_action_prompt": "First group meeting makes it clear it's going to be mostly you and Hiyori doing the actual work. How do you approach this?",
+      "affection_outcomes": {
+        "high": "Suggest splitting work fairly and check in with her without micromanaging",
+        "mid": "Go along with whatever she suggests",
+        "low": "Try to offload work onto her or complain about the other groupmates to her"
+      },
+      "notes": "Active event. Good vehicle for low-stakes daily proximity without romantic pressure.",
+      "sub_events": [
+        {
+          "id": "group_project_late_night_call",
+          "day_offset": "3-4",
+          "description": "You're both stuck on the same part of the project at 11pm and end up on a call troubleshooting it together.",
+          "player_action_prompt": "It's late and you're both tired but making progress. What's the vibe on the call?",
+          "affection_outcomes": {
+            "high": "Stay focused but let some humor and casual conversation in",
+            "mid": "Keep it strictly about the project",
+            "low": "Get irritable or short with her over the frustration"
+          }
+        },
+        {
+          "id": "group_project_presentation_day",
+          "day_offset": "6",
+          "description": "Presentation day. The two useless groupmates barely show up prepared. You and Hiyori end up covering for them on the spot.",
+          "player_action_prompt": "You have to improvise together in front of the class. How do you handle it?",
+          "affection_outcomes": {
+            "high": "Back her up smoothly, make her look good, don't take more credit than you deserve",
+            "mid": "Get through it functionally",
+            "low": "Panic and leave her to cover for both of you"
+          }
+        }
+      ]
+    },
+    {
+      "id": "accidental_follow",
+      "title": "You Did WHAT",
+      "description": "While looking through Shiori's following list to find Hiyori's Instagram, you accidentally hit follow on her profile. Or worse — while in your contacts looking at Hiyori's number Shiori gave you, you accidentally call her. One ring. You hang up. Your phone rings back immediately.",
+      "stage_required": "stranger",
+      "affection_required": 0,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "randomized_details": {
+        "incident_options": [
+          "accidentally followed her Instagram while trying to look at her profile",
+          "accidentally liked a photo from 47 weeks ago while scrolling",
+          "accidentally called her when her number was open on your screen",
+          "accidentally sent a half-typed message you were writing to Shiori to Hiyori instead"
+        ]
+      },
+      "player_action_prompt": "Oh no. It happened. What do you do?",
+      "affection_outcomes": {
+        "high": "Own it immediately with a self-deprecating honest message — she will respect the honesty",
+        "mid": "Pretend it didn't happen and hope she does the same",
+        "low": "Send a panicked weird message that makes it worse"
+      },
+      "notes": "This event has high entertainment value and can actually INCREASE affection significantly if handled well — it breaks the ice in an unexpected way."
+    },
+    {
+      "id": "library_late_night",
+      "title": "2AM at the Library",
+      "description": "Finals season. You're at the 24-hour library on Level 5 at 2am, barely functional, surrounded by your laptop and cold coffee. You look up and Hiyori is three tables away, handwriting notes with a highlighter in her mouth, equally destroyed.",
+      "stage_required": "acquaintance",
+      "affection_required": 15,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "player_action_prompt": "You make eye contact. The universal language of exam suffering. What do you do?",
+      "affection_outcomes": {
+        "high": "Go over quietly, exchange a few exhausted words, maybe offer to grab drinks from the vending machine",
+        "mid": "Wave and smile, leave it at that",
+        "low": "Ignore it or say something annoying about her major vs yours"
+      }
+    },
+    {
+      "id": "sad_story",
+      "title": "Her Story",
+      "description": "Hiyori posts a vague sad story on Instagram at 11pm — just a grey background and a song lyric. No caption. You see it. You don't know if you should say something.",
+      "stage_required": "acquaintance",
+      "affection_required": 20,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "player_action_prompt": "You see the story. What do you do?",
+      "affection_outcomes": {
+        "high": "Send a casual, non-pushy message — 'hey, you okay?' Nothing more. Give her room.",
+        "mid": "React to the story with an emoji and leave it",
+        "low": "Don't respond, or send something overwhelming and over-the-top"
+      }
+    },
+    {
+      "id": "group_outing_becomes_two",
+      "title": "And Then There Were Two",
+      "description": "A group outing that Shiori organized. One by one, people drop out with excuses — last minute assignment, sick, family thing. By the time you're at the meeting point, it's just you and Hiyori.",
+      "stage_required": "friend",
+      "affection_required": 35,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "randomized_details": {
+        "location_options": [
+          "Gardens by the Bay",
+          "Haji Lane area",
+          "East Coast Park",
+          "a weekend market at Pasir Pagar"
+        ]
+      },
+      "player_action_prompt": "It's just you and her. She looks at you and says 'well... do you still want to go?' What do you say?",
+      "affection_outcomes": {
+        "high": "Say yes without making it a big deal — treat it like any other hangout and let it be what it is",
+        "mid": "Agree but seem slightly awkward about it",
+        "low": "Make it weird or suggest cancelling"
+      }
+    },
+    {
+      "id": "borrow_notes",
+      "title": "Can I Get Your Notes?",
+      "description": "You're in the same module now. Hiyori missed a lecture for her tutoring commitment and texts you (through Shiori's suggestion) asking if you have notes she could borrow. This turns into a study session.",
+      "stage_required": "acquaintance",
+      "affection_required": 20,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "player_action_prompt": "You're now studying together in the library. What's the vibe you go for?",
+      "affection_outcomes": {
+        "high": "Focused but naturally conversational — study first, talk when it happens organically",
+        "mid": "Keep it academic and friendly",
+        "low": "Use it as an excuse to not actually study or make her feel like she owes you"
+      }
+    },
+    {
+      "id": "someone_asks_her_out",
+      "title": "You Hear Something",
+      "description": "You're near the Science canteen when you overhear — or Shiori tells you — that someone else asked Hiyori out. She apparently said she needed to think about it.",
+      "stage_required": "friend",
+      "affection_required": 30,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "player_action_prompt": "You just found out someone else is interested in her and she hasn't said no. What do you do with this information?",
+      "affection_outcomes": {
+        "high": "Don't panic. Stay consistent. Let your presence speak — don't suddenly over-pursue or act possessive.",
+        "mid": "Sit on it and wait",
+        "low": "Act weird around her, become distant, or bring it up to her directly in an awkward way"
+      },
+      "notes": "If affection is already high (60+) when this event triggers, Hiyori will turn the other person down on her own. Player doesn't know this."
+    },
+    {
+      "id": "rain_umbrella",
+      "title": "It's Raining",
+      "description": "Classic. It starts raining out of nowhere while you're both outside — no umbrella. You have one. She doesn't.",
+      "stage_required": "acquaintance",
+      "affection_required": 15,
+      "type": "canon_event",
+      "duration_days": 1,
+      "player_action_prompt": "It's raining. You have an umbrella. She's about to make a run for it. What do you do?",
+      "affection_outcomes": {
+        "high": "Offer without making it theatrical. Walk with her. Don't make it a moment.",
+        "mid": "Offer and let her decide",
+        "low": "Don't offer, or make such a big deal of offering that it becomes weird"
+      }
+    },
+    {
+      "id": "yuki_late_night_text",
+      "title": "Late Night From Yuki",
+      "description": "It's 11:30pm. You get a text from Yuki. 'Hey. Are you awake?' — she says it's about something random. It isn't really.",
+      "stage_required": "acquaintance",
+      "affection_required": 0,
+      "type": "secret_end_event",
+      "duration_days": 1,
+      "player_action_prompt": "Yuki texted you late at night. What do you reply?",
+      "affection_outcomes": {
+        "high_yuki": "Reply warmly, ask what's up, stay in the conversation — Yuki's hidden affection increases",
+        "mid": "Reply briefly and keep it short",
+        "low_yuki": "Leave it on read or give a one-word reply"
+      },
+      "notes": "This event is one of several that contributes to Yuki's hidden affection meter. Player does not know this meter exists."
+    },
+    {
+      "id": "yuki_econs_help",
+      "title": "Yuki Needs a Favor",
+      "description": "Yuki texts asking if you can help her make sense of a basic statistics concept for an econs module — something you covered in a CS module last year. It's a flimsy excuse and you both sort of know it.",
+      "stage_required": "stranger",
+      "affection_required": 0,
+      "type": "secret_end_event",
+      "duration_days": 1,
+      "player_action_prompt": "Yuki asked for your help with something she probably could've figured out herself. What do you do?",
+      "affection_outcomes": {
+        "high_yuki": "Actually help properly and ask her how her other modules are going too",
+        "mid": "Help quickly and move on",
+        "low_yuki": "Brush her off or make her feel like she's wasting your time"
+      },
+      "notes": "Contributes to Yuki's hidden affection meter."
+    },
+    {
+      "id": "yuki_dinner_invite",
+      "title": "Just the Three of Us. Wait, Two.",
+      "description": "Yuki invites you to dinner, framing it as a group thing with Shiori. Shiori cancels last minute citing an assignment. Yuki doesn't seem surprised.",
+      "stage_required": "acquaintance",
+      "affection_required": 0,
+      "type": "secret_end_event",
+      "duration_days": 1,
+      "player_action_prompt": "It's just you and Yuki at dinner now. What's the conversation like?",
+      "affection_outcomes": {
+        "high_yuki": "Be genuinely present, ask about her rather than defaulting to talking about Hiyori",
+        "mid": "Keep it casual and friendly",
+        "low_yuki": "Spend the dinner talking mostly about Hiyori"
+      },
+      "notes": "A meaningful contributor to Yuki's hidden affection meter — this event tests whether the player treats Yuki as her own person."
+    },
+    {
+      "id": "hiyori_sick",
+      "title": "She's Not Replying",
+      "description": "Hiyori hasn't replied to the group chat all day, which is unusual for her. Shiori mentions she's been sick in her hostel room since yesterday.",
+      "stage_required": "acquaintance",
+      "affection_required": 20,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "player_action_prompt": "You know she's sick and alone in her hostel room. What do you do, if anything?",
+      "affection_outcomes": {
+        "high": "Check in directly, offer to drop off something practical (soup, medicine) without making it a big gesture",
+        "mid": "Send a text wishing her well",
+        "low": "Don't do anything or wait for someone else to handle it"
+      }
+    },
+    {
+      "id": "hiyori_cycling_invite",
+      "title": "Come Ride With Us",
+      "description": "Hiyori mentions, almost as an afterthought, that her cycling club is doing an easy beginner-friendly route this Saturday and 'anyone can join if they want.' She doesn't quite look at you when she says it.",
+      "stage_required": "friend",
+      "affection_required": 45,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "player_action_prompt": "It sounded like an offer, even if she didn't frame it as one directed at you. What do you do?",
+      "affection_outcomes": {
+        "high": "Say yes plainly, show up prepared, don't make a big deal of the invitation",
+        "mid": "Say maybe and leave it uncertain",
+        "low": "Decline dismissively or make a joke that undercuts the invitation"
+      }
+    },
+    {
+      "id": "exchange_rumor",
+      "title": "Something She Mentioned",
+      "description": "Hiyori mentions, very casually, that she applied for an overseas exchange program 'on a whim' and probably won't get in. She changes the subject quickly after.",
+      "stage_required": "friend",
+      "affection_required": 30,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "player_action_prompt": "She brought it up and then moved past it fast. Do you follow up?",
+      "affection_outcomes": {
+        "high": "Ask one genuine follow-up question, then let her steer if she wants to talk more or not",
+        "mid": "Acknowledge it lightly and move on with her",
+        "low": "Push for more details than she's comfortable giving, or dismiss it as unimportant"
+      },
+      "notes": "Plants the narrative seed for the Day 30 exchange/ending twist. Should fire at least once before day 25 if possible."
+    },
+    {
+      "id": "shiori_checks_in",
+      "title": "Shiori Wants to Talk",
+      "description": "Shiori asks to grab coffee, just the two of you. She's not being dramatic about it, but it's clear she wants to talk about how things are going with Hiyori.",
+      "stage_required": "acquaintance",
+      "affection_required": 0,
+      "type": "real_life_event",
+      "duration_days": 1,
+      "player_action_prompt": "Shiori wants an honest conversation about what's going on with Hiyori. What do you tell her?",
+      "affection_outcomes": {
+        "high": "Be honest about your feelings without oversharing details that aren't yours to share",
+        "mid": "Give a vague, deflective answer",
+        "low": "Overshare inappropriately or dismiss her concern"
+      },
+      "notes": "Whatever the player tells Shiori here becomes part of Shiori's knowledge base going forward."
+    }
+  ],
+  "endings": {
+    "good_end": {
+      "id": "good_end",
+      "title": "She Said Yes",
+      "trigger": "confess with affection >= 80",
+      "description": "You find the moment. Maybe it's after the cultural show, maybe it's a quiet evening walk back from the library. You say it. She looks away first — classic — and then back at you. 'I was wondering when you'd say something,' she says, and she's smiling.",
+      "scene": "End scene: the two of you walking along the canal near UTown at dusk. She's cycling slowly beside you. The city is doing its thing. It's quiet in the right way."
+    },
+    "friend_zone_end": {
+      "id": "friend_zone_end",
+      "title": "I Think of You as a Friend",
+      "trigger": "confess with affection between 40-79",
+      "description": "She's kind about it. That's almost worse. 'I really like you as a person, Adrian,' she says. 'I just — I don't think I feel that way.' She means it. She hopes you'll still be friends. She's not sure you will be. Neither are you.",
+      "scene": "You walk back to your hostel alone. The city is the same as always. You are slightly different."
+    },
+    "bad_end": {
+      "id": "bad_end",
+      "title": "Please Don't",
+      "trigger": "confess with affection below 40, or multiple wrong moves accumulate",
+      "description": "She's uncomfortable. You can see it. She keeps it civil — she's not cruel — but there's a distance in her eyes that wasn't there before. She excuses herself. Shiori finds out. Things are awkward for a while.",
+      "scene": "You see her at the Science canteen a week later. She's with Shiori. They're laughing about something. She glances over, briefly, and looks away first."
+    },
+    "too_late_end": {
+      "id": "too_late_end",
+      "title": "Too Late",
+      "trigger": "Day 30 passes without confessing",
+      "description": "Out of nowhere, Hiyori announces she's been accepted into an overseas exchange program starting next semester, followed by a year-long internship abroad. It happened fast — faster than she expected too. You never said anything, and now the timing has closed the door on its own.",
+      "scene": "You run into her near the bus stop with her luggage, heading to the airport shuttle. 'See you in two years, I guess,' she says, half-joking. She means it as a joke. Neither of you laughs quite right."
+    },
+    "secret_end": {
+      "id": "secret_end",
+      "title": "It Was Always You",
+      "trigger": "Yuki's hidden affection >= 70, player never triggered main confession with Hiyori",
+      "description": "It's late. You're walking back from the library with Yuki — this has been happening more and more lately, without either of you really planning it. She stops walking. 'Can I tell you something?' she says. 'And you can't make it weird.' She takes a breath. 'I think I've liked you for a really long time. Since secondary school, maybe. I just — I thought you knew, and then I thought you didn't, and then I gave up. But I don't want to give up anymore.'",
+      "scene": "The two of you sit on a bench outside the library for another hour just talking. About secondary school. About now. About what this means. It's not dramatic. It's just honest. That's all it ever needed to be."
+    }
+  }
+}
