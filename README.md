@@ -65,7 +65,7 @@ Confession is **never gated** by affection — the player can shoot their shot a
 | Layer | Tool |
 |---|---|
 | LLM | Gemma (via Google AI Studio, free tier, 32k context) |
-| Embeddings | Google `text-embedding-004` (768-dim) |
+| Embeddings | Google `gemini-embedding-001`, truncated to 768-dim (`text-embedding-004` was shut down by Google before this project reached ingestion) |
 | Vector DB | Supabase pgvector |
 | Database | Supabase (game state, messages, diary entries, events log) |
 | Frontend | Next.js + TypeScript + Tailwind + Framer Motion |
@@ -81,9 +81,9 @@ All chosen for generous free tiers — this project is designed to run at zero c
 ```
 Player action
   ↓
-Embed query (text-embedding-004)
+Embed query (gemini-embedding-001)
   ↓
-pgvector similarity search, filtered by character + is_static/session
+pgvector similarity search, filtered by character + similarity threshold
   ↓
 Retrieve top-k lore chunks
   ↓
@@ -103,6 +103,8 @@ Every chunk (static lore or dynamically generated) lives in one table, distingui
 - `character` — which NPC's knowledge this chunk belongs to (`hiyori`, `shiori`, `yuki`, or `events`)
 
 This lets retrieval pull `is_static = true OR session_id = current_session` in one query — base lore plus whatever this specific playthrough has generated so far.
+
+> **Current gap:** the live `match_lore_chunks`/`match_lore_multi_character` functions filter by `character` + a similarity threshold only — the `is_static`/`session_id` scoping above is the intended design but isn't wired into retrieval yet. Fine for now since only static lore exists; needs to go back in before dynamic per-playthrough content is added.
 
 ### Chunking strategy
 Hybrid paragraph + section-heading split:
@@ -135,15 +137,14 @@ Adrian does **not** have a dynamic knowledge base — only Hiyori, Shiori, and Y
 - Core game design (daily flow, action points, event system, ending conditions)
 - Full lore documents for all 4 characters
 - `events.json` finalized with capped extended-event durations and sub-events
-- Supabase schema drafted (`lore_chunks`, `game_state`, `messages`, `diary_entries`, `events_log`)
-- Retrieval functions drafted (`match_lore_chunks`, `match_lore_multi_character`)
+- Supabase schema live (`lore_chunks`, `game_state`, `messages`, `diary_entries`, `events_log`) — note the live `lore_chunks` table and RPCs diverged from the originally drafted `supabase/schema.sql` (see `lib/supabase.ts` for the current, accurate contract)
+- Full RAG ingestion pipeline built and verified end-to-end: `lib/chunking.ts` → `lib/embeddings.ts` → `lib/supabase.ts` → `scripts/ingest.ts` → `scripts/test-retrieval.ts`
+- 61 static lore chunks embedded and ingested into `lore_chunks`; retrieval manually verified against real queries
 
 **Next up:**
-- Finalize ingestion pipeline location (leaning: standalone Node.js script, `scripts/ingest.ts`)
-- Write and run the ingestion script (chunk → embed → store)
-- Test retrieval manually before touching the frontend
 - Gemma integration for NPC dialogue + affection delta output
 - End-of-day batch evaluation function
+- Wire `is_static`/`session_id` scoping back into retrieval once dynamic content exists (see gap note above)
 - Next.js frontend (chat UI, schedule view, event prompts)
 - Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
 
