@@ -16,7 +16,12 @@ export interface LoreChunk {
   character: 'hiyori' | 'shiori' | 'yuki' | 'adrian' | 'events';
   source_file: string;
   chunk_index: number;
-  is_static: true;
+  // Widened from the literal `true` this started as: chunkLoreFile below
+  // always produces static: true, but end-of-day batch eval will build
+  // dynamic (is_static: false, session_id set) chunks by hand — same
+  // shape, same insertLoreChunks() insert path, no separate type needed.
+  is_static: boolean;
+  session_id?: string;
   section_title?: string;
 }
 

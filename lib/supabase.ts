@@ -1,24 +1,16 @@
 // ============================================================
 // lib/supabase.ts
 //
-// Supabase client + insert/retrieval helpers for lore_chunks.
+// Supabase client + insert/retrieval helpers for lore_chunks and
+// the end-of-day batch eval tables (game_state/messages/diary_entries).
 //
-// NOTE (2026-07-11): supabase/schema.sql is OUT OF DATE — the
-// live lore_chunks table + RPCs were already created by hand in
-// the SQL editor and drifted from that file. Do NOT run
-// schema.sql; the types/signatures below match what's actually
-// deployed. Differences worth knowing:
-//   - id is uuid, not bigint
-//   - there is no section_title column — chunking.ts still
-//     produces section_title per chunk, but it has nowhere to go,
-//     so leave it out of the insert payload for now
-//   - match_lore_chunks / match_lore_multi_character take
-//     (match_count, similarity_threshold) — there's no
-//     match_session_id param, so retrieval isn't scoped by
-//     playthrough session yet, just character + similarity
-//   - match_lore_multi_character's per-row character column is
-//     named `chara` (not `character`) in its return shape
-//
+// NOTE (2026-07-13): supabase/schema.sql is now an accurate, MCP-
+// verified snapshot of the live schema (previously it was stale —
+// see git history if curious). Still no section_title column on
+// lore_chunks, so chunking.ts's section_title gets folded into
+// content at ingestion time (see scripts/ingest.ts) rather than
+// stored separately. match_lore_multi_character's per-row character
+// column is named `chara`, not `character`, in its return shape.
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js';
@@ -49,7 +41,6 @@ export interface MultiMatchedChunk extends MatchedChunk {
   chara: string;
 }
 
-// Insert a batch of already-embedded chunks into lore_chunks.
 export async function insertLoreChunks(
   chunks: LoreChunk[],
   embeddings: number[][]
@@ -61,6 +52,7 @@ export async function insertLoreChunks(
     source_file: chunk.source_file,
     chunk_index: chunk.chunk_index,
     is_static: chunk.is_static,
+    session_id: chunk.session_id ?? null,
     embedding: embeddings[i],
   }));
 
@@ -71,7 +63,6 @@ export async function insertLoreChunks(
   }
 }
 
-// Retrieve top-k chunks for ONE character.
 export async function matchLoreChunks(
   queryEmbedding: number[],
   character: LoreChunk['character'],
@@ -92,7 +83,6 @@ export async function matchLoreChunks(
   return data;
 }
 
-// Same idea as matchLoreChunks, but across multiple characters in one call.
 export async function matchLoreMultiCharacter(
   queryEmbedding: number[],
   characters: LoreChunk['character'][],
@@ -111,4 +101,107 @@ export async function matchLoreMultiCharacter(
   }
 
   return data;
+}
+
+// ============================================================
+// End-of-day batch eval helpers — game_state / messages /
+// diary_entries. Columns below match the live tables (checked via
+// Supabase MCP list_tables), not a drafted schema — no drift risk
+// like lore_chunks/schema.sql had, but keep it that way: if you
+// change a column live, update the type here too.
+// ============================================================
+
+export interface GameState {
+  session_id: string;
+  current_day: number;
+  action_points: number;
+  affection: number;
+  relationship_stage: string;
+  yuki_affection: number;
+  confessed: boolean;
+  game_over: boolean;
+  ending_id: string | null;
+}
+
+// role reuses DialogueTurn's 'player' | 'npc' union — messages rows are
+// assumed to be written with those same values by whatever chat/game
+// loop ends up inserting them (not built yet). Worth confirming once
+// that exists, since nothing enforces it at the DB level (role is a
+// plain text column).
+export interface Message {
+  id: string;
+  session_id: string;
+  day: number;
+  character: LoreChunk['character'];
+  role: 'player' | 'npc';
+  content: string;
+  created_at: string;
+}
+
+export interface DiaryEntry {
+  id: string;
+  session_id: string;
+  day: number;
+  entry_text: string;
+  affection_tier: number;
+  trigger_type: string;
+  event_id: string | null;
+  created_at: string;
+}
+
+// .single() errors if 0 or 2+ rows come back, which is what you want
+// here — session_id is unique.
+export async function getGameState(sessionId: string): Promise<GameState> {
+  const { data, error } = await supabase.from('game_state').select('*').eq('session_id', sessionId).single();
+
+  if (error){
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+export async function updateGameState(
+  sessionId: string,
+  updates: Partial<Omit<GameState, 'session_id'>>
+): Promise<void> {
+  const {error} = await supabase.from('game_state').update(updates).eq('session_id', sessionId);
+
+  if (error){
+    throw new Error(error.message);
+  } 
+}
+
+// Scoped to one session+day on purpose — "today's conversation," not
+// the whole game's history (see lib/gemma.ts's history-scoping design).
+export async function getMessagesForDay(sessionId: string, day: number): Promise<Message[]> {
+  const { data, error } = await supabase.from('messages').select('*').eq('session_id', sessionId).eq('day', day).order('created_at');
+
+  if (error){
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+// Comes back newest-first — caller (generateDiaryEntry's context) may
+// want to .reverse() so they read chronologically in the prompt.
+export async function getLastDiaryEntries(sessionId: string, limit: number = 2): Promise<DiaryEntry[]> {
+  const { data, error } = await supabase.from('diary_entries').select('*').eq('session_id', sessionId).order('day', {ascending: false}).limit(limit);
+
+  if (error){
+    throw new Error(error.message);
+  }
+  return data;
+}
+
+// event_id is nullable — only set when trigger_type is 'event'.
+export async function insertDiaryEntry(
+  entry: Omit<DiaryEntry, 'id' | 'created_at'>
+): Promise<void> {
+  const { error } = await supabase.from('diary_entries').insert(entry);
+
+  if (error){
+    throw new Error(error.message);
+  }
 }

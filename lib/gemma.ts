@@ -7,8 +7,12 @@
 //
 // Affection is NOT scored per message — per README's daily flow,
 // it's a single end-of-day batch evaluation over the full day's
-// conversation, done in a separate (not yet built) module. This
-// file only generates dialogue.
+// conversation. That's generateAffectionDelta/generateKnowledgeUpdate/
+// generateDiaryEntry below — separate focused calls rather than one
+// combined prompt, so a JSON-shape failure in one doesn't block the
+// others and each prompt stays small enough to debug on its own.
+// Diary trigger conditions themselves are NOT decided by Gemma — see
+// lib/relationship.ts's checkDiaryTrigger for that deterministic logic.
 //
 // NOTE: Gemma's support for Gemini-only features like
 // responseSchema/systemInstruction is unconfirmed (undocumented
@@ -20,6 +24,7 @@
 
 import { GoogleGenAI } from '@google/genai';
 import type { MatchedChunk } from './supabase.js';
+import type { RelationshipStage } from './relationship.js';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY ?? '' });
 
@@ -42,18 +47,15 @@ export interface DialogueTurn {
   content: string;
 }
 
-// README lists 4 named relationship stages (Stranger -> Acquaintance
-// -> Friend -> Close Friend) elsewhere but says "5 tiers" in the
-// Hidden Affection Meter section — that's an unresolved inconsistency
-// in the design doc, not something to guess at here. Left as a plain
-// string until the tier system itself gets built and that's settled.
-export type RelationshipStage = string;
+// RelationshipStage now lives in lib/relationship.ts (Stranger ->
+// Acquaintance -> Friend -> Close Friend) — the "4 stages vs 5
+// tiers" doc ambiguity is resolved there: tiers are a finer split
+// used only for diary voice, not a separate stage.
 
 export interface DialogueResult {
   reply: string;
 }
 
-// Build the full prompt string sent to Gemma for one turn.
 function buildPrompt(
   character: NPCCharacter,
   playerMessage: string,
@@ -90,7 +92,6 @@ Respond with ONLY a single JSON object — no markdown code fences, no extra com
 { "reply": "<what ${name} says back, in her voice, 1-3 sentences>" }`;
 }
 
-// Parse Gemma's raw text response into a DialogueResult.
 function parseDialogueResult(rawText: string): DialogueResult {
   // Gemma sometimes wraps JSON in ```json fences despite being told not to.
   const cleaned = rawText
@@ -113,7 +114,6 @@ function parseDialogueResult(rawText: string): DialogueResult {
   return { reply: (parsed as { reply: string }).reply };
 }
 
-// Generate one NPC dialogue turn.
 export async function generateDialogue(
   character: NPCCharacter,
   playerMessage: string,
@@ -136,4 +136,257 @@ export async function generateDialogue(
   }
 
   return parseDialogueResult(response.text);
+}
+
+// ============================================================
+// End-of-day batch eval calls. Each follows the same three-part
+// shape as generateDialogue above (buildXPrompt -> parseXResult ->
+// generateX) — reuse that structure rather than reinventing it.
+// ============================================================
+
+export interface AffectionDeltaResult {
+  delta: number;
+}
+
+// Only 'hiyori' | 'yuki' have an affection meter (Shiori doesn't,
+// per game_state's columns) — narrower than NPCCharacter on purpose.
+function buildAffectionDeltaPrompt(
+  character: 'hiyori' | 'yuki',
+  messages: DialogueTurn[],
+  currentAffection: number,
+  currentStage: RelationshipStage
+): string {
+  const name = character[0].toUpperCase() + character.slice(1);
+
+  const messagesText = messages.length > 0
+    ? messages.map((turn) => `${turn.role === 'player' ? 'Player' : name}: ${turn.content}`).join('\n')
+    : '(No messages yet.)';
+
+  return `You are an emotional-continuity evaluator for a narrative dating simulation — NOT ${name} herself, and nothing you write here is ever shown to the player. Your only job is to judge how today's conversation between Adrian (the player) and ${name} would realistically move her hidden affection toward him.
+
+${name.toUpperCase()}'S PERSONALITY (use this to judge how SHE specifically would react, not a generic person):
+${PERSONAS[character]}
+
+CURRENT AFFECTION: ${currentAffection}/100
+CURRENT RELATIONSHIP STAGE: ${currentStage}
+Weigh the conversation against where she already is — the same warm gesture should move the needle more early on (Stranger/Acquaintance) than once she's already Close Friend, and a guarded personality should shift in small increments even when a conversation goes well.
+
+TODAY'S CONVERSATION:
+${messagesText}
+
+Judge the delta on:
+- Did Adrian say or do something that respects, amuses, or genuinely connects with her — or something generic, careless, or off-putting given who she is?
+- Effort and attentiveness matter more than surface politeness.
+- No conversation today, or a flat/neutral one, should produce a delta near 0 — don't invent movement that isn't there.
+- Stay within -8 to +8. Daily conversation should never swing affection as hard as a major life event would — those are scored separately and can cross bigger thresholds (see the ±15 diary-trigger check elsewhere in this codebase); keeping chat's range well under that keeps the two systems from stepping on each other.
+
+Respond with ONLY a single JSON object — no markdown code fences, no extra commentary before or after it:
+{ "delta": <integer from -8 to 8> }`;
+}
+
+function parseAffectionDeltaResult(rawText: string): AffectionDeltaResult {
+  const cleaned = rawText
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new Error(`Gemma response was not valid JSON: ${rawText}`);
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || typeof (parsed as { delta: unknown }).delta !== 'number') {
+    throw new Error(`Gemma response did not match the expected shape: ${rawText}`);
+  }
+
+  const rawDelta = (parsed as { delta: number }).delta;
+
+  // The -8..+8 bound is only a prompt instruction, not something the
+  // model reliably respects — clamp (don't throw) so an occasional
+  // Gemma overshoot degrades to "capped delta" instead of crashing the
+  // whole batch eval. Round first so a stray non-integer (e.g. 3.7)
+  // doesn't slip into game_state.affection, which is an int column.
+  const delta = Math.max(-8, Math.min(8, Math.round(rawDelta)));
+
+  return { delta };
+}
+
+export async function generateAffectionDelta(
+  character: 'hiyori' | 'yuki',
+  messages: DialogueTurn[],
+  currentAffection: number,
+  currentStage: RelationshipStage
+): Promise<AffectionDeltaResult> {
+  const prompt = buildAffectionDeltaPrompt(character, messages, currentAffection, currentStage);
+
+  const response = await ai.models.generateContent({
+    model: MODEL,
+    contents: prompt,
+  });
+
+  if (!response.text) {
+    throw new Error('Gemma returned no text');
+  }
+
+  return parseAffectionDeltaResult(response.text);
+}
+
+export interface KnowledgeUpdateResult {
+  content: string;
+}
+
+// Produces the TEXT that becomes a new dynamic lore_chunks row
+// (is_static: false, session_id set) for one NPC — what `character`
+// now personally knows/feels about Adrian after today, written the
+// way an existing lore chunk reads, not as dialogue. Only ever given
+// this character's own conversation (caller's job to scope it that
+// way) — per README's siloed-knowledge design, no cross-NPC gossip.
+function buildKnowledgeUpdatePrompt(character: NPCCharacter, messages: DialogueTurn[]): string {
+  const name = character[0].toUpperCase() + character.slice(1);
+
+  const messagesText = messages.length > 0
+    ? messages.map((turn) => `${turn.role === 'player' ? 'Adrian' : name}: ${turn.content}`).join('\n')
+    : '(No interaction with Adrian today.)';
+
+  return `You are updating ${name}'s private knowledge base in a narrative dating simulation — a factual record of what SHE personally knows or perceives about Adrian, not dialogue and never shown to the player directly.
+
+${name.toUpperCase()}'S PERSONALITY (shapes how she'd interpret today, not what she says out loud):
+${PERSONAS[character]}
+
+TODAY'S CONVERSATION WITH ADRIAN:
+${messagesText}
+
+Write 2-4 sentences, third person. This must be about ADRIAN — his actions today and what they reveal — filtered through ${name}'s perspective, NOT a description of ${name} herself or her own state. Get the subject right: sentences should read like "Adrian did/said X — ${name} took that to mean Y," never "${name} felt/looked/was X." Capture only what ${name} learned or came to feel about Adrian from TODAY's interaction — not a restatement of things she already knew before today. Stay consistent with her personality: a guarded character notices more than she'd ever say, a direct character forms clearer opinions outright, etc. If nothing meaningful happened today, write one short sentence acknowledging that instead of inventing detail.
+
+Example of the right subject/perspective: "Adrian noticed she seemed stressed and asked about it without making a big deal of it — ${name} found that oddly considerate, though she'd never admit it out loud." (Adrian's action is the subject; ${name}'s reaction is the interpretation layered on top, not the main subject.)
+
+Respond with ONLY a single JSON object — no markdown code fences, no extra commentary before or after it:
+{ "content": "<2-4 sentence third-person update>" }`;
+}
+
+function parseKnowledgeUpdateResult(rawText: string): KnowledgeUpdateResult {
+  const cleaned = rawText
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new Error(`Gemma response was not valid JSON: ${rawText}`);
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || typeof (parsed as { content: unknown }).content !== 'string') {
+    throw new Error(`Gemma response did not match the expected shape: ${rawText}`);
+  }
+
+  return { content: (parsed as { content: string }).content };
+}
+
+export async function generateKnowledgeUpdate(
+  character: NPCCharacter,
+  messages: DialogueTurn[]
+): Promise<KnowledgeUpdateResult> {
+  const prompt = buildKnowledgeUpdatePrompt(character, messages);
+
+  const response = await ai.models.generateContent({
+    model: MODEL,
+    contents: prompt,
+  });
+
+  if (!response.text) {
+    throw new Error('Gemma returned no text');
+  }
+
+  return parseKnowledgeUpdateResult(response.text);
+}
+
+// Matches diary_system.md's prompt template placeholders exactly.
+export interface DiaryEntryContext {
+  day: number;
+  tierLabel: string; // relationship.ts's tierLabel(tier) — label only, never the number
+  relationshipStage: RelationshipStage;
+  eventSummary: string; // "nothing notable" if no event today
+  adrianAction: string; // player's last meaningful action/choice today
+  lastEntries: string[]; // order (oldest/newest first) is the caller's convention — this just numbers them in the order given
+}
+
+export interface DiaryEntryResult {
+  entry: string;
+}
+
+// Adapted from diary_system.md's "SYSTEM PROMPT FOR DIARY GENERATION"
+// template verbatim — that section is already fully spec'd, so this
+// just slots DiaryEntryContext's fields into its placeholders rather
+// than reinventing the voice guidelines.
+function buildDiaryPrompt(context: DiaryEntryContext): string {
+  const lastEntriesText = context.lastEntries.length > 0
+    ? context.lastEntries.map((entry, i) => `${i + 1}. ${entry}`).join('\n\n')
+    : '(No previous entries — this is the first one.)';
+
+  return `You are writing a private diary entry for Hiyori Mizuki, a 20-year-old Life Sciences student at NUS. This is her personal journal — she is honest with herself here in a way she isn't with other people, but she also deflects and minimizes, especially about her feelings for someone she is starting to notice.
+
+Voice guidelines:
+- Casual, personal, sometimes mid-thought
+- She doesn't write in neat paragraphs — she trails off, backtracks, changes subject
+- She mentions mundane things alongside significant ones (lab reports, food, tiredness)
+- She does NOT dramatically declare feelings — she might mention someone in passing, note something they did, then immediately write about something unrelated
+- The more she likes someone, the MORE she downplays it in writing
+- She uses dry humor when she's uncomfortable about something
+- She never writes anyone's name with hearts or dramatic language
+- She is self-aware but not always honest with herself
+
+Affection context: ${context.tierLabel}
+Relationship stage: ${context.relationshipStage}
+Today's events: ${context.eventSummary}
+What Adrian did/said: ${context.adrianAction}
+Previous entries:
+${lastEntriesText}
+Current in-game day: Day ${context.day} of 30
+
+Write a diary entry for tonight. 150-250 words. Do not start with "Dear Diary." Do not mention affection scores or game mechanics. Write as Hiyori would write. Tag the entry with: [Day ${context.day} — In-game]
+
+Respond with ONLY a single JSON object — no markdown code fences, no extra commentary before or after it:
+{ "entry": "<the full diary entry text, including the [Day ${context.day} — In-game] tag>" }`;
+}
+
+function parseDiaryResult(rawText: string): DiaryEntryResult {
+  const cleaned = rawText
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new Error(`Gemma response was not valid JSON: ${rawText}`);
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || typeof (parsed as { entry: unknown }).entry !== 'string') {
+    throw new Error(`Gemma response did not match the expected shape: ${rawText}`);
+  }
+
+  return { entry: (parsed as { entry: string }).entry };
+}
+
+export async function generateDiaryEntry(context: DiaryEntryContext): Promise<DiaryEntryResult> {
+  const prompt = buildDiaryPrompt(context);
+
+  const response = await ai.models.generateContent({
+    model: MODEL,
+    contents: prompt,
+  });
+
+  if (!response.text) {
+    throw new Error('Gemma returned no text');
+  }
+
+  return parseDiaryResult(response.text);
 }
