@@ -390,3 +390,130 @@ export async function generateDiaryEntry(context: DiaryEntryContext): Promise<Di
 
   return parseDiaryResult(response.text);
 }
+
+// ============================================================
+// Event outcome scoring.
+//
+// The player answers an event in free text describing what they'd do,
+// which gets stored on the events_log row (player_action) during the
+// day and scored here at end-of-day rather than inline. Deferring it is
+// deliberate: activity segments run against a live clock, and a Gemma
+// call mid-segment would stall it for the length of a round trip. The
+// batch eval is already several sequential calls that nobody waits on.
+// ============================================================
+
+export interface EventOutcomeResult {
+  // Which of the event's three written outcomes the response best matches.
+  // Returned alongside the delta so the caller can show the matching
+  // outcome text without having to re-derive it from the number.
+  tier: 'high' | 'mid' | 'low';
+  delta: number;
+}
+
+export interface EventOutcomeContext {
+  // Only 'hiyori' | 'yuki' have a meter — see lib/events.ts's affectedMeter,
+  // which resolves Shiori-focused events onto Hiyori's.
+  character: 'hiyori' | 'yuki';
+  eventDescription: string;
+  actionPrompt: string;
+  // The event's own affection_outcomes block from events.json, verbatim —
+  // these are the grading criteria, not choices the player picked from.
+  outcomes: { high: string; mid: string; low: string };
+  playerAction: string;
+  currentAffection: number;
+  currentStage: RelationshipStage;
+}
+
+function buildEventOutcomePrompt(context: EventOutcomeContext): string {
+  const name = context.character[0].toUpperCase() + context.character.slice(1);
+
+  return `You are an emotional-continuity evaluator for a narrative dating simulation — NOT ${name} herself, and nothing you write here is ever shown to the player. Judge how the player's handling of a specific event would realistically move ${name}'s hidden affection toward him.
+
+${name.toUpperCase()}'S PERSONALITY (judge how SHE specifically would react, not a generic person):
+${PERSONAS[context.character]}
+
+CURRENT AFFECTION: ${context.currentAffection}/100
+CURRENT RELATIONSHIP STAGE: ${context.currentStage}
+Weigh the response against where she already is — the same gesture moves the needle more early on than once she's already Close Friend, and a guarded personality shifts in small increments even when something goes well.
+
+WHAT HAPPENED:
+${context.eventDescription}
+
+THE SITUATION HE FACED:
+${context.actionPrompt}
+
+HOW THIS EVENT IS GRADED (written for this specific event — grade against these, not your own standard):
+- A strong response looks like: ${context.outcomes.high}
+- An adequate response looks like: ${context.outcomes.mid}
+- A poor response looks like: ${context.outcomes.low}
+
+WHAT ADRIAN (the player) SAID HE WOULD DO:
+"${context.playerAction}"
+
+Pick the tier his response best matches, then a delta:
+- "high" -> +6 to +15
+- "mid" -> -2 to +5
+- "low" -> -15 to -2
+Judge what he actually described doing, not what he claims about himself. A response that ignores the situation, is empty, or is nonsense is "low". Do not reward stated good intentions that the described action doesn't back up. Events can swing affection harder than ordinary conversation does — a genuinely significant moment handled well or badly is allowed to reach the ends of these ranges.
+
+Respond with ONLY a single JSON object — no markdown code fences, no extra commentary before or after it:
+{ "tier": "<high|mid|low>", "delta": <integer> }`;
+}
+
+// Per-tier clamps, so a tier/delta disagreement can't produce something
+// self-contradictory like tier "low" with a +12 delta.
+const TIER_DELTA_BOUNDS: Record<EventOutcomeResult['tier'], { min: number; max: number }> = {
+  high: { min: 6, max: 15 },
+  mid: { min: -2, max: 5 },
+  low: { min: -15, max: -2 },
+};
+
+function parseEventOutcomeResult(rawText: string): EventOutcomeResult {
+  const cleaned = rawText
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new Error(`Gemma response was not valid JSON: ${rawText}`);
+  }
+
+  const candidate = parsed as { tier?: unknown; delta?: unknown };
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    typeof candidate.delta !== 'number' ||
+    (candidate.tier !== 'high' && candidate.tier !== 'mid' && candidate.tier !== 'low')
+  ) {
+    throw new Error(`Gemma response did not match the expected shape: ${rawText}`);
+  }
+
+  // Same reasoning as parseAffectionDeltaResult: the ranges are prompt
+  // instructions, not something the model reliably respects, so clamp rather
+  // than throw — an overshoot degrades to a capped delta instead of failing
+  // the whole batch eval. Round first so a stray non-integer can't reach
+  // game_state.affection, which is an int column.
+  const bounds = TIER_DELTA_BOUNDS[candidate.tier];
+  const delta = Math.max(bounds.min, Math.min(bounds.max, Math.round(candidate.delta)));
+
+  return { tier: candidate.tier, delta };
+}
+
+export async function generateEventOutcome(context: EventOutcomeContext): Promise<EventOutcomeResult> {
+  const prompt = buildEventOutcomePrompt(context);
+
+  const response = await ai.models.generateContent({
+    model: MODEL,
+    contents: prompt,
+  });
+
+  if (!response.text) {
+    throw new Error('Gemma returned no text');
+  }
+
+  return parseEventOutcomeResult(response.text);
+}

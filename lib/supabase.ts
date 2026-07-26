@@ -218,3 +218,86 @@ export async function insertMessage(
     throw new Error(error.message);
   }
 }
+// ============================================================
+// events_log — what fired, when, and how the player handled it.
+//
+// This table is the only persisted event state. lib/events.ts is pure
+// logic and stores nothing, so the orchestrator reconstructs everything
+// it needs from these rows: which extended arcs a playthrough has already
+// used, which arc is currently active and when it started, and which of
+// its sub-events have fired.
+//
+// player_action holds the player's free-text response, written during the
+// day; affection_delta stays 0 until the end-of-day batch eval scores that
+// response (see lib/gemma.ts's generateEventOutcome) and fills it in.
+// ============================================================
+
+export interface EventLog {
+  id: string;
+  session_id: string;
+  // Either a GameEvent id or a SubEvent id — sub-events are logged in their
+  // own right, since "which sub-events have fired" is what drives an arc's
+  // force-out logic.
+  event_id: string;
+  day_triggered: number;
+  player_action: string | null;
+  affection_delta: number;
+  created_at: string;
+}
+
+export async function insertEventLog(
+  entry: Omit<EventLog, 'id' | 'created_at'>
+): Promise<void> {
+  const { error } = await supabase.from('events_log').insert(entry);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+// Scored at end-of-day rather than on the spot, so the batch eval needs to
+// find the day's rows again to fill in their affection_delta.
+export async function getEventLogsForDay(sessionId: string, day: number): Promise<EventLog[]> {
+  const { data, error } = await supabase
+    .from('events_log')
+    .select('*')
+    .eq('session_id', sessionId)
+    .eq('day_triggered', day)
+    .order('created_at');
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+// Whole-playthrough history — the orchestrator needs this to work out which
+// arcs are already used (they're one-time-only) and to rebuild active-arc state.
+export async function getAllEventLogs(sessionId: string): Promise<EventLog[]> {
+  const { data, error } = await supabase
+    .from('events_log')
+    .select('*')
+    .eq('session_id', sessionId)
+    .order('day_triggered');
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+export async function updateEventLogOutcome(
+  eventLogId: string,
+  affectionDelta: number
+): Promise<void> {
+  const { error } = await supabase
+    .from('events_log')
+    .update({ affection_delta: affectionDelta })
+    .eq('id', eventLogId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
