@@ -150,6 +150,37 @@
             "morning_activity",
             "activity_after_lunch"
           ]
+        },
+        {
+          "id": "orientation_committee_work_session",
+          "day_offset": "1-7",
+          "description": "Another committee work block — venue lists, budget sheets, someone's laptop dying. Hiyori's at the same table, half-listening to the same argument you are.",
+          "player_action_prompt": "It's slow, unglamorous committee work and you're both stuck in it. How do you spend the time?",
+          "affection_outcomes": {
+            "high": "Make the tedious work bearable — share the load, keep the mood light without slacking",
+            "mid": "Do your own portion and let her do hers",
+            "low": "Coast and let her pick up the slack, or complain the whole way through"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "orientation_committee_evening_logistics",
+          "day_offset": "1-7",
+          "description": "The committee group chat is still going at night — last-minute changes, someone volunteering someone else. Hiyori's typing too.",
+          "player_action_prompt": "The chat's a mess and something needs sorting before tomorrow. What do you do?",
+          "affection_outcomes": {
+            "high": "Quietly sort the thing out and back her up when she's talked over",
+            "mid": "Reply when directly asked, otherwise stay out of it",
+            "low": "Add to the noise or dump the problem on her"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
       ]
     },
@@ -185,7 +216,7 @@
         },
         {
           "id": "cultural_show_post_show",
-          "day_offset": "2",
+          "day_offset": "3",
           "description": "After the show, backstage. She comes offstage still buzzing, adrenaline high, makeup slightly smudged from the lights.",
           "player_action_prompt": "She's still riding the high of the performance. This is a key moment. What do you say?",
           "affection_outcomes": {
@@ -197,6 +228,37 @@
             "activity_after_dinner"
           ],
           "final_day": true
+        },
+        {
+          "id": "cultural_show_prep_run",
+          "day_offset": "1-3",
+          "description": "Setup and run-throughs all day — props in the wrong place, cues missed, everyone slightly on edge. Hiyori's somewhere in the middle of it.",
+          "player_action_prompt": "There's more to do than time to do it and she's clearly stretched. What do you do?",
+          "affection_outcomes": {
+            "high": "Take something off her plate without being asked or making it a thing",
+            "mid": "Handle your own assigned bits",
+            "low": "Add to her stress or hover without actually helping"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "cultural_show_late_practice",
+          "day_offset": "1-2",
+          "description": "Practice running late again. The hall's mostly empty, a few people still going over the same eight bars.",
+          "player_action_prompt": "It's late and she's still here working on it. How do you handle the moment?",
+          "affection_outcomes": {
+            "high": "Stay without making a production of staying — company, not pressure",
+            "mid": "Say goodnight and head off",
+            "low": "Push her to call it a night in a way that reads as dismissive of the work"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
       ]
     },
@@ -245,6 +307,37 @@
             "activity_after_lunch"
           ],
           "final_day": true
+        },
+        {
+          "id": "group_project_work_block",
+          "day_offset": "1-6",
+          "description": "Another working session on the project. The other two groupmates are 'busy' again, so it's the same two of you and a half-finished slide deck.",
+          "player_action_prompt": "You're carrying this together and there's a lot left. How do you approach the session?",
+          "affection_outcomes": {
+            "high": "Split things sensibly, take the part she'd rather not do, keep it collaborative",
+            "mid": "Work through your own section quietly",
+            "low": "Micromanage her half or grumble about the groupmates the whole time"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "group_project_evening_grind",
+          "day_offset": "1-6",
+          "description": "Evening, project files open, messages going back and forth about a section neither of you likes.",
+          "player_action_prompt": "Neither of you is stopping any time soon. What's the tone?",
+          "affection_outcomes": {
+            "high": "Keep it human — let some humor in, notice when she needs a break",
+            "mid": "Stay strictly on task",
+            "low": "Get short with her because you're tired"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
       ]
     },
@@ -414,7 +507,8 @@
       "notes": "This event is one of several that contributes to Yuki's hidden affection meter. Player does not know this meter exists.",
       "eligible_segments": [
         "activity_after_dinner"
-      ]
+      ],
+      "affects": "yuki"
     },
     {
       "id": "yuki_econs_help",
@@ -434,7 +528,8 @@
       "eligible_segments": [
         "morning_activity",
         "activity_after_lunch"
-      ]
+      ],
+      "affects": "yuki"
     },
     {
       "id": "yuki_dinner_invite",
@@ -453,7 +548,8 @@
       "notes": "A meaningful contributor to Yuki's hidden affection meter — this event tests whether the player treats Yuki as her own person.",
       "eligible_segments": [
         "activity_after_dinner"
-      ]
+      ],
+      "affects": "yuki"
     },
     {
       "id": "hiyori_sick",
@@ -527,7 +623,7 @@
         "mid": "Give a vague, deflective answer",
         "low": "Overshare inappropriately or dismiss her concern"
       },
-      "notes": "Whatever the player tells Shiori here becomes part of Shiori's knowledge base going forward.",
+      "notes": "Whatever the player tells Shiori here becomes part of Shiori's knowledge base going forward. Shiori-focused, but scores against Hiyori's meter (no `affects` field): Shiori has no meter of her own and isn't a route. She's protective of Hiyori, so how Adrian treats her reaches Hiyori indirectly.",
       "eligible_segments": [
         "morning_activity",
         "activity_after_lunch"
@@ -579,6 +675,37 @@
             "activity_after_lunch"
           ],
           "final_day": true
+        },
+        {
+          "id": "hall_sports_training_session",
+          "day_offset": "1-3",
+          "description": "Shared training slot again. Your hall on one half of the court, her cycling club stretching on the other.",
+          "player_action_prompt": "You're both in the same space with time before things start properly. What do you do?",
+          "affection_outcomes": {
+            "high": "Easy conversation, no agenda — treat it as normal",
+            "mid": "Stick with your own group",
+            "low": "Try too hard to get her attention"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "hall_sports_evening_recovery",
+          "day_offset": "1-3",
+          "description": "Post-training evening outside the sports hall — everyone's aching, sprawled on the steps arguing about tomorrow's lineup. Her club's packing up nearby.",
+          "player_action_prompt": "It's loose, low-stakes downtime and she's around. How do you play it?",
+          "affection_outcomes": {
+            "high": "Include her naturally without singling her out",
+            "mid": "Stay in your own conversation",
+            "low": "Make a show of noticing her"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
       ]
     },
@@ -626,6 +753,37 @@
           "eligible_segments": [
             "activity_after_lunch"
           ]
+        },
+        {
+          "id": "cycling_trip_riding_stretch",
+          "day_offset": "1-2",
+          "description": "A long flat stretch of the route. The group's strung out and conversation comes and goes with the pace.",
+          "player_action_prompt": "You're riding near her for a while with nothing particular to say. What do you do?",
+          "affection_outcomes": {
+            "high": "Let it be easy — talk when there's something to say, don't force it",
+            "mid": "Keep to small talk",
+            "low": "Fill every silence or try to impress her with your pace"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "cycling_trip_evening_wind_down",
+          "day_offset": "1-2",
+          "description": "Evening after a long day of riding. Everyone's sunburnt, sore, and too tired to be self-conscious.",
+          "player_action_prompt": "The group's winding down and she's nearby. What do you do?",
+          "affection_outcomes": {
+            "high": "Be good company without needing it to go anywhere",
+            "mid": "Keep to yourself, you're tired too",
+            "low": "Push for a moment alone when she's clearly exhausted"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
       ]
     },
@@ -675,8 +833,40 @@
             "activity_after_lunch"
           ],
           "final_day": true
+        },
+        {
+          "id": "yuki_econs_crunch_daytime_prep",
+          "day_offset": "1-4",
+          "description": "Another prep block with Yuki — practice cases, a whiteboard, her handwriting getting messier as she goes.",
+          "player_action_prompt": "She's grinding through material she half-understands. How do you help?",
+          "affection_outcomes": {
+            "high": "Work at her pace and let her get things wrong without judgment",
+            "mid": "Explain it correctly and move on",
+            "low": "Get impatient or make her feel slow"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "yuki_econs_crunch_evening_drills",
+          "day_offset": "1-4",
+          "description": "Evening messages from Yuki — a question about a model, then another, then one that isn't really about the model.",
+          "player_action_prompt": "The questions have drifted away from econs. What do you do?",
+          "affection_outcomes": {
+            "high": "Follow where she's actually going without calling it out",
+            "mid": "Answer what was literally asked",
+            "low": "Shut the conversation down once the studying's technically done"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
-      ]
+      ],
+      "affects": "yuki"
     },
     {
       "id": "finals_week",
@@ -738,6 +928,37 @@
             "activity_after_lunch"
           ],
           "final_day": true
+        },
+        {
+          "id": "finals_week_daytime_cram",
+          "day_offset": "1-5",
+          "description": "Daytime revision. Same study space, same exhausted faces, Hiyori a few seats over with a highlighter she isn't really using.",
+          "player_action_prompt": "You're both running on fumes in the same room. What do you do?",
+          "affection_outcomes": {
+            "high": "Small, practical kindness — coffee, a saved seat, no big gestures",
+            "mid": "Focus on your own revision",
+            "low": "Interrupt her focus to talk"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "finals_week_library_night",
+          "day_offset": "1-5",
+          "description": "The library at night during finals. Half the campus is here and nobody's leaving.",
+          "player_action_prompt": "It's late and neither of you has moved in hours. How do you handle it?",
+          "affection_outcomes": {
+            "high": "Notice when she's hit her limit and suggest stopping",
+            "mid": "Keep grinding in parallel",
+            "low": "Make the mood worse by spiralling out loud"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
       ]
     },
@@ -787,6 +1008,37 @@
             "activity_after_dinner"
           ],
           "final_day": true
+        },
+        {
+          "id": "exchange_decision_unspoken_daytime",
+          "day_offset": "1-4",
+          "description": "Normal day, except it isn't. She hasn't brought the exchange up again and neither have you, but it's sitting there.",
+          "player_action_prompt": "She's acting like everything's normal. Do you leave it alone?",
+          "affection_outcomes": {
+            "high": "Let her raise it in her own time, stay easy to talk to",
+            "mid": "Keep things normal and say nothing",
+            "low": "Keep steering the conversation back to it"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "exchange_decision_late_thoughts",
+          "day_offset": "1-4",
+          "description": "A late message from Hiyori about something unrelated. It's clearly not what she's actually thinking about.",
+          "player_action_prompt": "She's texting about nothing at midnight. What do you do?",
+          "affection_outcomes": {
+            "high": "Stay up and talk about nothing for as long as she needs to",
+            "mid": "Reply briefly and turn in",
+            "low": "Press her about the decision directly"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
       ]
     },
@@ -804,7 +1056,7 @@
         "mid": "Offer generic encouragement",
         "low": "Brush off the mock interview as not a big deal"
       },
-      "notes": "Not a Hiyori-focused arc — deepens Adrian's friendship with Shiori directly, and gives her a moment of vulnerability outside her usual protective/advisory role.",
+      "notes": "Not a Hiyori-focused arc — deepens Adrian's friendship with Shiori directly, and gives her a moment of vulnerability outside her usual protective/advisory role. Shiori-focused, but scores against Hiyori's meter (no `affects` field): Shiori has no meter of her own and isn't a route. She's protective of Hiyori, so how Adrian treats her reaches Hiyori indirectly.",
       "sub_events": [
         {
           "id": "shiori_interview_crunch_guard_down",
@@ -836,6 +1088,37 @@
             "activity_after_lunch"
           ],
           "final_day": true
+        },
+        {
+          "id": "shiori_interview_crunch_practice_round",
+          "day_offset": "1-3",
+          "description": "Another mock round. Shiori's answers are getting tighter but she's still second-guessing every one of them.",
+          "player_action_prompt": "She wants feedback and she can tell when you're softening it. What do you give her?",
+          "affection_outcomes": {
+            "high": "Honest, specific notes — she asked for real help, not comfort",
+            "mid": "Mostly encouragement, light on specifics",
+            "low": "Nitpick in a way that rattles her confidence"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "shiori_interview_crunch_night_prep",
+          "day_offset": "1-3",
+          "description": "Late-night messages from Shiori — a question about a data structure, then one about whether she's wasting everyone's time.",
+          "player_action_prompt": "The self-doubt just leaked through. How do you respond?",
+          "affection_outcomes": {
+            "high": "Take it seriously and remind her what she's actually good at",
+            "mid": "Answer the technical question and let the rest slide",
+            "low": "Brush the doubt off with a joke"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
       ]
     },
@@ -885,6 +1168,37 @@
             "activity_after_lunch"
           ],
           "final_day": true
+        },
+        {
+          "id": "hiyori_tutoring_gig_materials_run",
+          "day_offset": "1-3",
+          "description": "Worksheets, practice papers, printing that goes wrong twice. Hiyori's particular about how the material's laid out.",
+          "player_action_prompt": "It's fiddly prep work and she cares about it more than she lets on. How do you help?",
+          "affection_outcomes": {
+            "high": "Take her standards seriously and do it properly",
+            "mid": "Do the tasks you're given",
+            "low": "Rush it or tease her for caring so much"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "hiyori_tutoring_gig_evening_marking",
+          "day_offset": "1-3",
+          "description": "Evening spent marking practice scripts. She keeps writing full explanations in the margins for kids who probably won't read them.",
+          "player_action_prompt": "She's putting far more in than the job asks for. Do you say anything?",
+          "affection_outcomes": {
+            "high": "Notice it out loud, warmly, without making her defensive",
+            "mid": "Keep marking, say nothing",
+            "low": "Point out she's wasting her time"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
       ]
     },
@@ -931,6 +1245,37 @@
           "eligible_segments": [
             "morning_activity"
           ]
+        },
+        {
+          "id": "hall_camp_weekend_group_games",
+          "day_offset": "1-2",
+          "description": "Station games in the sun. Forced enthusiasm, questionable rules, everyone slightly damp.",
+          "player_action_prompt": "The games keep throwing your group together. How do you play it?",
+          "affection_outcomes": {
+            "high": "Commit to the silliness — it's easier to be around you when you're not overthinking",
+            "mid": "Participate without much energy",
+            "low": "Opt out and make the group work around you"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "hall_camp_weekend_night_activities",
+          "day_offset": "1-2",
+          "description": "Night activities running late — someone's guitar, someone's bad ghost story, people drifting between groups.",
+          "player_action_prompt": "It's loose and unstructured and she's somewhere in the mix. What do you do?",
+          "affection_outcomes": {
+            "high": "Be around without engineering a moment",
+            "mid": "Stay with whoever you're already talking to",
+            "low": "Hover at the edge of whatever group she's in, waiting for an opening"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
       ]
     },
@@ -980,6 +1325,37 @@
             "activity_after_lunch"
           ],
           "final_day": true
+        },
+        {
+          "id": "when_shes_sick_checking_in",
+          "day_offset": "1-3",
+          "description": "She's still in her room. Shiori's relaying updates, and the group chat's gone quiet out of politeness.",
+          "player_action_prompt": "You don't want to crowd her but you'd like to know she's okay. What do you do?",
+          "affection_outcomes": {
+            "high": "One low-pressure message that doesn't demand a reply",
+            "mid": "Wait for Shiori's next update",
+            "low": "Message repeatedly until she answers"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "when_shes_sick_evening_updates",
+          "day_offset": "1-3",
+          "description": "A short reply from Hiyori at night — mostly fine, mostly lying, definitely still ill.",
+          "player_action_prompt": "She's downplaying how rough it is. How do you respond?",
+          "affection_outcomes": {
+            "high": "Let her downplay it, but make it easy to ask for something if she needs it",
+            "mid": "Take the 'I'm fine' at face value",
+            "low": "Argue with her about how sick she actually is"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
       ]
     },
@@ -1029,6 +1405,37 @@
             "activity_after_dinner"
           ],
           "final_day": true
+        },
+        {
+          "id": "the_other_guy_seeing_him_around",
+          "day_offset": "1-4",
+          "description": "He's around again — canteen, corridor, walking the same direction she is. Nothing you could point at, exactly.",
+          "player_action_prompt": "You keep noticing. What do you actually do about it?",
+          "affection_outcomes": {
+            "high": "Nothing. It's hers to handle, and you don't make it her problem to manage you",
+            "mid": "Notice it and move on",
+            "low": "Insert yourself into the conversation"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "ambient": true
+        },
+        {
+          "id": "the_other_guy_overthinking_at_night",
+          "day_offset": "1-4",
+          "description": "Night, phone in hand, rereading a message from Hiyori that has nothing to do with him.",
+          "player_action_prompt": "You're spiralling a bit. What do you send?",
+          "affection_outcomes": {
+            "high": "Reply to what she actually said, and leave it at that",
+            "mid": "Leave it until morning",
+            "low": "Fish for information about him"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "ambient": true
         }
       ]
     }
