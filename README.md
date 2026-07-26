@@ -33,11 +33,28 @@ A 0–100 score for Hiyori (and a separate hidden meter for Yuki) that is **neve
 ### Relationship Stages
 `Stranger → Acquaintance → Friend → Close Friend` — gates which events and dialogue are available.
 
+### Schedule Generation
+Each in-game day is 8 sequential segments covering the full 24-hour cycle:
+
+| Segment | Type | Notes |
+|---|---|---|
+| `sleep_morning` | locked | midnight → wake time (tail end of last night's sleep) |
+| `get_ready` | free | |
+| `morning_activity` | activity | resolves later to class / homework / group project / free time |
+| `lunch` | free | |
+| `activity_after_lunch` | activity | resolves later to class / homework / free time |
+| `dinner` | free | |
+| `activity_after_dinner` | activity | resolves later to homework / free time / gaming |
+| `sleep_night` | locked | short (~30min) — just the midnight-to-bedtime tail, not the whole night |
+
+Each segment's duration is drawn from its own normal distribution, then the full set is rescaled so all 8 sum to exactly 24 hours (preserving relative proportions). No fixed action-point count — the schedule itself is the day's scarcity. Implemented in `lib/schedule.ts`'s `generateDailySchedule`.
+
 ### Daily Flow
-1. Player sees their schedule for the day (some free time slots, some fixed commitments).
-2. Each free-time slot converts to a chat-time budget (e.g. 5 hours of in-game free time ≈ 30 minutes of actual chatting — exact conversion rate TBD) rather than a fixed action-point count. During free time, the player can spend from that budget to text Hiyori, Shiori, or Yuki, or do nothing. No separate action-point system — the schedule itself is the scarcity.
-3. **Random events fire unpredictably** — even during "busy" schedule blocks — with higher probability during free time. The player cannot fully predict when or what, and events aren't gated by the chat-time budget above.
-4. At end of day, a batch evaluation runs:
+1. Player sees their schedule for the day (the 8 segments above) plus the current in-game clock.
+2. During `free` segments (`get_ready`, `lunch`, `dinner`), in-game time runs in real time at a fixed compression rate — **1 in-game hour ≈ 15 real minutes** — while the player can chat with Hiyori, Shiori, or Yuki. A skip action ends the segment immediately and jumps to the next one.
+3. `locked` segments (asleep) and unresolved `activity` segments are not interactive — no live waiting; the clock just advances by that segment's full duration and moves to the next segment. **Random events fire unpredictably** during `activity` segments (busy blocks), never during `locked` ones.
+4. This live clock/schedule state is deliberately **not persisted server-side** — it only exists as client-side session state once the frontend exists. Exiting mid-day loses that day's progress; only the end-of-day checkpoint below is saved.
+5. At end of day, a batch evaluation runs:
    - Updates the hidden affection score and relationship tier
    - Updates each NPC's individual knowledge base (what they know/feel about Adrian, based only on what they personally experienced that day)
    - Generates a new Hiyori diary entry if a trigger condition is met
@@ -101,9 +118,7 @@ Every chunk (static lore or dynamically generated) lives in one table, distingui
 - `session_id` — `null` for static lore (shared across all playthroughs), set for dynamic content (scoped to one playthrough)
 - `character` — which NPC's knowledge this chunk belongs to (`hiyori`, `shiori`, `yuki`, or `events`)
 
-This lets retrieval pull `is_static = true OR session_id = current_session` in one query — base lore plus whatever this specific playthrough has generated so far.
-
-> **Current gap:** the live `match_lore_chunks`/`match_lore_multi_character` functions filter by `character` + a similarity threshold only — the `is_static`/`session_id` scoping above is the intended design but isn't wired into retrieval yet. Fine for now since only static lore exists; needs to go back in before dynamic per-playthrough content is added.
+This lets retrieval pull `is_static = true OR session_id = current_session` in one query — base lore plus whatever this specific playthrough has generated so far. Both `match_lore_chunks` and `match_lore_multi_character` take a `match_session_id` parameter implementing exactly this filter (added via the `add_session_scoping_to_lore_retrieval` migration).
 
 ### Chunking strategy
 Hybrid paragraph + section-heading split:
@@ -133,7 +148,7 @@ Adrian does **not** have a dynamic knowledge base — only Hiyori, Shiori, and Y
 ## Project Status
 
 **Done:**
-- Core game design (daily flow, action points, event system, ending conditions)
+- Core game design (daily flow, schedule/time system, event system, ending conditions)
 - Full lore documents for all 4 characters
 - `events.json` finalized with capped extended-event durations and sub-events
 - Supabase schema live (`lore_chunks`, `game_state`, `messages`, `diary_entries`, `events_log`) — note the live `lore_chunks` table and RPCs diverged from the originally drafted `supabase/schema.sql` (see `lib/supabase.ts` for the current, accurate contract)
@@ -142,11 +157,14 @@ Adrian does **not** have a dynamic knowledge base — only Hiyori, Shiori, and Y
 - Gemma integration for NPC dialogue (`lib/gemma.ts`'s `generateDialogue`), grounded in retrieved lore + relationship stage
 - Relationship tier/stage + diary-trigger logic (`lib/relationship.ts`)
 - End-of-day batch evaluation (`lib/batch-eval.ts`'s `runEndOfDayBatchEval`) — updates per-NPC knowledge chunks, affection score, relationship stage, and diary entries (with RAG re-indexing). Verified end-to-end against the live DB + Gemini API (`scripts/tmp-test-batch-eval.ts`); independent Gemini calls run concurrently with a retry-once-after-60s wrapper for rate-limit resilience
+- Retrieval scoping fix — `match_lore_chunks`/`match_lore_multi_character` now filter by `is_static`/`session_id` (see `lore_chunks` table design above), verified against real dynamic + static data (`scripts/tmp-test-retrieval-scoping.ts`)
+- Single-turn chat handling (`lib/chat.ts`'s `sendPlayerMessage`) — retrieval + `generateDialogue` + persistence to `messages`, verified end-to-end (`scripts/tmp-test-chat.ts`), including that history stays correctly scoped to one character and one conversation continues coherently across turns
+- Daily schedule generation (`lib/schedule.ts`'s `generateDailySchedule`), per the Schedule Generation section above, verified via `scripts/tmp-test-schedule.ts`
 
 **Next up:**
-- Wire `is_static`/`session_id` scoping back into retrieval (see gap note above) — now a real blocker, not just a future one: the batch eval above already writes dynamic chunks that retrieval can't see yet
-- Game loop / orchestrator wiring `generateDialogue` + retrieval + `runEndOfDayBatchEval` into an actual playable daily flow (chat-time budget, end-of-day trigger)
-- Next.js frontend (chat UI, schedule view, event prompts)
+- Random event system (reads `events.json`, decides when/what fires during `activity` segments, tracks `events_log`) — the last remaining piece of backend logic with no live-session dependency
+- Game loop / orchestrator wiring `sendPlayerMessage` + `runEndOfDayBatchEval` + the event system into an actual playable daily flow
+- Next.js frontend (chat UI, live schedule/clock view with skip, event prompts) — this is also where the live clock/schedule state described above actually lives, since it's deliberately not persisted server-side
 - Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
 
 ---
