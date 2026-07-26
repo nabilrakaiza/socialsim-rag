@@ -60,8 +60,21 @@ Each segment's duration is drawn from its own normal distribution, then the full
    - Generates a new Hiyori diary entry if a trigger condition is met
    - Re-embeds all new dynamic content into the vector store
 
-### Extended ("Active") Events
-Some events span multiple days (max 7) rather than resolving in one scene — e.g. a week-long orientation committee arc. While active, the game tracks `days_remaining` and biases event generation toward related `sub_events`, while still allowing unrelated events to occur at lower frequency.
+### Event System
+All events live in `lore/events.json` (30 events, 54 sub-events) and are resolved by `lib/events.ts`.
+
+**On a normal day**, each `activity` segment rolls once: 70% chance of an event in the morning and afternoon, 50% at night. The remainder resolves to flavor-only filler (class, homework, gaming, …) that carries no mechanical weight. If the roll lands on "event", the pool is filtered by the segment (each event declares `eligible_segments`), the player's relationship stage, and their affection — an empty pool falls back to flavor rather than forcing something that isn't unlocked yet.
+
+**Extended events** are multi-day arcs (2–7 days). One runs at a time, each fires at most once per playthrough, and an idle day has a 25% chance of starting one. An arc is only eligible if it can still finish before day 30, so a 7-day arc can't begin on day 26. There's deliberately **no** force-out guaranteeing every arc runs: the 13 arcs total 49 days of content against a 30-day game, so which arcs a playthrough sees is meant to vary.
+
+**While an arc is active**, its own `sub_events` take 2/3 of firing segments — unrelated events still break through, an arc just dominates its week. Each sub-event declares an `eligible_segments` list and a `day_offset` window inside the arc, and lands one of three ways:
+- **rolled** — the normal 2/3 weighting
+- **forced** — if it reaches the last day of its window without having fired, it fires anyway, so no sub-event is ever missed
+- **guaranteed** — beats flagged `final_day` (presentation day, post-show, …) always fire on the arc's last day, no roll
+
+Sub-events flagged `ambient` span the whole arc and are written to survive repeating; they exist so an active arc actually fills its days instead of leaving most segments to unrelated events. The unflagged ones are the narrative one-offs.
+
+**Which meter an event moves** is the optional `affects` field — absent means Hiyori, and only the four Yuki-route events set it. Shiori-focused events deliberately score against Hiyori's meter: she has no meter of her own and isn't a route, but she's protective of Hiyori, so how Adrian treats her reaches Hiyori indirectly.
 
 ### Endings
 | Ending | Trigger |
@@ -120,6 +133,8 @@ Every chunk (static lore or dynamically generated) lives in one table, distingui
 
 This lets retrieval pull `is_static = true OR session_id = current_session` in one query — base lore plus whatever this specific playthrough has generated so far. Both `match_lore_chunks` and `match_lore_multi_character` take a `match_session_id` parameter implementing exactly this filter (added via the `add_session_scoping_to_lore_retrieval` migration).
 
+> **Note on the `events` character bucket:** nothing currently retrieves it. `lib/events.ts` resolves events by ID from `events.json` directly, so there's no reason to find them by embedding search. The ingested `events` chunks are effectively vestigial, and they're also stale — the 10 arcs added after the original ingestion run aren't in the table. Re-running `scripts/ingest.ts` would duplicate the existing 61 static rows rather than refresh them, so that needs a clear-first step before it's safe. Left alone deliberately until something actually needs event lore retrieved.
+
 ### Chunking strategy
 Hybrid paragraph + section-heading split:
 - Backstory/knowledge/interest files → split on `---` section headers
@@ -160,10 +175,12 @@ Adrian does **not** have a dynamic knowledge base — only Hiyori, Shiori, and Y
 - Retrieval scoping fix — `match_lore_chunks`/`match_lore_multi_character` now filter by `is_static`/`session_id` (see `lore_chunks` table design above), verified against real dynamic + static data (`scripts/tmp-test-retrieval-scoping.ts`)
 - Single-turn chat handling (`lib/chat.ts`'s `sendPlayerMessage`) — retrieval + `generateDialogue` + persistence to `messages`, verified end-to-end (`scripts/tmp-test-chat.ts`), including that history stays correctly scoped to one character and one conversation continues coherently across turns
 - Daily schedule generation (`lib/schedule.ts`'s `generateDailySchedule`), per the Schedule Generation section above, verified via `scripts/tmp-test-schedule.ts`
+- Random event system (`lib/events.ts`), per the Event System section above — normal-day segment resolution, extended-event triggering, and in-arc sub-event resolution. Verified by simulation (`scripts/tmp-test-events.ts`, `scripts/tmp-test-arc.ts`): across 500 simulated runs of all 13 arcs, every sub-event lands and no final-day beat ever fires off the final day
+- Event content expanded to 13 extended arcs (up from 3) spanning the affection range, plus per-arc ambient sub-events so an active arc actually fills its days
 
 **Next up:**
-- Random event system (reads `events.json`, decides when/what fires during `activity` segments, tracks `events_log`) — the last remaining piece of backend logic with no live-session dependency
-- Game loop / orchestrator wiring `sendPlayerMessage` + `runEndOfDayBatchEval` + the event system into an actual playable daily flow
+- Game loop / orchestrator wiring `sendPlayerMessage` + `runEndOfDayBatchEval` + the event system into an actual playable daily flow. This is also where the remaining event-system wiring lands: persisting fired events to `events_log`, reconstructing active-arc state from it, and feeding event outcomes into affection scoring (`lib/events.ts` is pure logic — it reads no DB and writes none)
+- Feed event outcomes into each NPC's knowledge base — `runEndOfDayBatchEval` currently derives knowledge updates from `messages` only, so an event that fires today leaves no trace in what the characters remember
 - Next.js frontend (chat UI, live schedule/clock view with skip, event prompts) — this is also where the live clock/schedule state described above actually lives, since it's deliberately not persisted server-side
 - Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
 
