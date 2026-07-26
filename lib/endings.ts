@@ -8,21 +8,18 @@
 // risking hallucinated judgment) on. The ending's *prose* lives in
 // events.json; this only picks the id.
 //
-// Two things in events.json's trigger text are NOT implemented here,
-// deliberately, because they aren't defined anywhere yet:
+// Two notes on events.json's trigger text:
 //
-//  - bad_end's "or multiple wrong moves accumulate". There is no
+//  - NOT implemented: bad_end's "or multiple wrong moves accumulate". There is no
 //    wrong-move counter in game_state and no definition of what
 //    counts as one, so only the affection-based path is implemented.
 //    Adding it later means a new counter column plus a threshold.
 //
-//  - secret_end's timing. Its trigger only says "Yuki's affection
-//    >= 70 and the player never confessed to Hiyori", never when it
-//    is checked. Evaluated here at the end of the run alongside
-//    too_late_end, so it reads as the alternative to letting the
-//    clock run out rather than something that cuts the game short
-//    the moment Yuki's meter crosses 70. If it should instead be
-//    able to fire mid-game, move it above the day check below.
+//  - Settled: secret_end's timing was left open by its trigger text, which
+//    says "Yuki's affection >= 70 and the player never confessed to
+//    Hiyori" without saying when that's checked. It's day 30 only.
+//    It's the alternative to letting the clock run out, not something
+//    that can cut the run short the moment Yuki's meter crosses 70.
 // ============================================================
 
 export type EndingId =
