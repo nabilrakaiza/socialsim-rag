@@ -2,10 +2,10 @@
 // lib/events.ts
 //
 // Loads and resolves lore/events.json — the random event system.
-// This file covers steps 1-2 of the plan: loading/typing the data,
-// and resolving what happens during ONE activity segment on a normal
-// day (no active extended event). Extended-event triggering and
-// in-arc resolution (steps 3-4) come later, once this is working.
+// Covers normal-day segment resolution, extended-event triggering,
+// and in-arc sub-event resolution. Pure logic: reads no database and
+// writes none. Persisting fired events to events_log and rebuilding
+// active-arc state from those rows belongs to the orchestrator.
 //
 // stage_required in the JSON is lowercase ('stranger', 'acquaintance',
 // 'friend') — NOT the same casing as lib/relationship.ts's
@@ -16,6 +16,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import type { RelationshipStage } from './relationship.js';
+import { TOTAL_GAME_DAYS } from './endings.js';
 
 const EVENTS_PATH = join(process.cwd(), 'lore', 'events.json');
 
@@ -141,10 +142,9 @@ const SEGMENT_PROBABILITIES: Record<ActivitySegmentName, SegmentOutcomeProbabili
   },
 };
 
-// HINT: readFileSync(EVENTS_PATH, 'utf-8') -> JSON.parse -> cast to
-// EventsFile -> return .events. Called fresh each time rather than
-// cached at module load — events.json changes during development and
-// scripts re-run often; caching would need a restart to pick up edits.
+// Read fresh each call rather than cached at module load — events.json
+// changes during development and scripts re-run often, so caching would
+// mean restarting to pick up edits.
 export function loadEvents(): GameEvent[] {
   const rawText = readFileSync(EVENTS_PATH, 'utf-8');
   const parsed: EventsFile = JSON.parse(rawText);
@@ -183,7 +183,9 @@ export type SegmentResolutionResult =
 // an active arc still applies.
 // ============================================================
 
-export const TOTAL_GAME_DAYS = 30;
+// Re-exported so callers of this module don't need to know the game's
+// length lives in endings.ts — that module owns "when does the game end".
+export { TOTAL_GAME_DAYS } from './endings.js';
 
 // Chance an idle day starts a new arc. ~4 idle days per trigger plus
 // ~3.7 avg arc length works out to roughly 3-4 arcs per playthrough.
@@ -199,11 +201,9 @@ export interface ActiveExtendedEvent {
   firedSubEventIds: string[]; // sub-events that have fired at least once
 }
 
-// HINT: day_offset is a string, either a single day ("6") or an
-// inclusive range ("3-4"), relative to the arc's own start (1-indexed:
-// "1" is the arc's first day). Return { first, last } — for a single
-// day both are the same number. String.split('-') + Number() is enough;
-// no regex needed.
+// day_offset is either a single day ("6") or an inclusive range ("3-4"),
+// 1-indexed against the arc's own start. A single day yields the same
+// value for both ends.
 function parseDayOffset(dayOffset: string): { first: number; last: number } {
   const day = dayOffset.split("-")
   const first = parseInt(day[0])
@@ -312,30 +312,9 @@ export function resolveActivitySegmentDuringArc(input: ArcSegmentResolutionInput
   return resolveActivitySegment(input);
 }
 
-// HINT: rough sequence —
-//
-// 1. Roll against SEGMENT_PROBABILITIES[input.segment].eventChance
-//    (Math.random() < eventChance). If it misses, pick a random entry
-//    from .flavorOptions and return { firedEvent: false, flavor }.
-//
-// 2. If it hits, filter loadEvents() down to events that are eligible:
-//    - type === 'real_life_event' or 'canon_event' or 'secret_end_event'
-//      (NOT 'extended_event' — those are step 3/4's job, this function
-//      is for normal days only)
-//    - event.eligible_segments?.includes(input.segment)
-//    - STAGE_ORDER[event.stage_required] <= STAGE_ORDER[toEventStage(input.currentStage)]
-//    - input.affection >= event.affection_required
-//    - if event.yuki_affection_required is set, input.yukiAffection
-//      must also meet it (see yuki_econs_crunch — the one event
-//      gated on Yuki's meter instead of/alongside the main one)
-//
-// 3. Pick one uniformly at random from the eligible list. If the list
-//    is empty (can happen early game when almost nothing's unlocked
-//    yet), fall back to a flavor result instead of throwing — a "roll
-//    said event, but nothing's actually eligible yet" case shouldn't
-//    crash the day.
-//
-// 4. Return { firedEvent: true, event }.
+// Resolves one activity segment on a normal day — no arc running. An
+// empty eligible pool (early game, before much is unlocked) falls back to
+// flavor rather than forcing an event that isn't available yet.
 export function resolveActivitySegment(input: SegmentResolutionInput): SegmentResolutionResult {
   const { eventChance, flavorOptions } = SEGMENT_PROBABILITIES[input.segment];
 
