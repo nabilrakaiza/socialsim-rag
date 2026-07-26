@@ -9,15 +9,27 @@
       "type": "real_life_event",
       "duration_days": 1,
       "randomized_details": {
-        "module_options": ["ES1000 Environmental Studies", "SP1541 Exploring Science", "GEN2001 Genes and Society"],
-        "location_options": ["LT27", "Science faculty lecture hall", "CLB lecture theatre"]
+        "module_options": [
+          "ES1000 Environmental Studies",
+          "SP1541 Exploring Science",
+          "GEN2001 Genes and Society"
+        ],
+        "location_options": [
+          "LT27",
+          "Science faculty lecture hall",
+          "CLB lecture theatre"
+        ]
       },
       "player_action_prompt": "You're now in the same lecture. What do you do?",
       "affection_outcomes": {
         "high": "Offer to share notes or sit nearby without making it weird",
         "mid": "Acknowledge her and focus on the lecture",
         "low": "Make a big deal of it or ignore her completely"
-      }
+      },
+      "eligible_segments": [
+        "morning_activity",
+        "activity_after_lunch"
+      ]
     },
     {
       "id": "met_with_friends_public",
@@ -28,15 +40,28 @@
       "type": "real_life_event",
       "duration_days": 1,
       "randomized_details": {
-        "location_options": ["on the MRT heading to Clementi", "at the bus stop outside UTown", "at a bubble tea place near Clementi Mall", "at a 7-Eleven near campus at 11pm"],
-        "activity_options": ["waiting for the same bus", "queuing for the same drink", "seated nearby on the train"]
+        "location_options": [
+          "on the MRT heading to Clementi",
+          "at the bus stop outside UTown",
+          "at a bubble tea place near Clementi Mall",
+          "at a 7-Eleven near campus at 11pm"
+        ],
+        "activity_options": [
+          "waiting for the same bus",
+          "queuing for the same drink",
+          "seated nearby on the train"
+        ]
       },
       "player_action_prompt": "The three of you end up talking for a while. What do you talk to Hiyori about?",
       "affection_outcomes": {
         "high": "Ask about something she's interested in and actually engage with her answer",
         "mid": "Keep it light and friendly",
         "low": "Dominate the conversation or barely acknowledge her"
-      }
+      },
+      "eligible_segments": [
+        "activity_after_lunch",
+        "activity_after_dinner"
+      ]
     },
     {
       "id": "met_alone_brief",
@@ -60,7 +85,11 @@
         "high": "Join her naturally, ask something genuine, don't overstay",
         "mid": "Say hi, chat briefly, leave when it feels right",
         "low": "Make it awkward, overstay, or don't say anything at all"
-      }
+      },
+      "eligible_segments": [
+        "activity_after_lunch",
+        "activity_after_dinner"
+      ]
     },
     {
       "id": "orientation_committee",
@@ -87,7 +116,11 @@
             "high": "Balance the task with genuine conversation, let silences be comfortable rather than awkward",
             "mid": "Stick mostly to the task, light small talk",
             "low": "Either ignore her or talk over the task entirely"
-          }
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ]
         },
         {
           "id": "orientation_committee_late_meeting",
@@ -98,7 +131,10 @@
             "high": "Work efficiently together, then let one small personal question slip in naturally",
             "mid": "Finish the task, keep things professional",
             "low": "Rush off immediately or make the moment feel forced"
-          }
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ]
         },
         {
           "id": "orientation_committee_disagreement",
@@ -109,7 +145,11 @@
             "high": "Hear her out fully, find a compromise, don't need to be right",
             "mid": "Concede quickly just to avoid conflict",
             "low": "Push your view and dismiss hers in front of others"
-          }
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ]
         }
       ]
     },
@@ -137,7 +177,11 @@
             "high": "Say something light to break the tension without dismissing how she feels",
             "mid": "Give her space, don't say much",
             "low": "Point out the mistake or make it a bigger deal than it is"
-          }
+          },
+          "eligible_segments": [
+            "activity_after_lunch",
+            "activity_after_dinner"
+          ]
         },
         {
           "id": "cultural_show_post_show",
@@ -148,7 +192,11 @@
             "high": "Match her energy, be specific about what you actually noticed during the show",
             "mid": "Congratulate her simply",
             "low": "Be distracted, generic, or make it about your own night backstage"
-          }
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ],
+          "final_day": true
         }
       ]
     },
@@ -177,7 +225,10 @@
             "high": "Stay focused but let some humor and casual conversation in",
             "mid": "Keep it strictly about the project",
             "low": "Get irritable or short with her over the frustration"
-          }
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ]
         },
         {
           "id": "group_project_presentation_day",
@@ -188,7 +239,12 @@
             "high": "Back her up smoothly, make her look good, don't take more credit than you deserve",
             "mid": "Get through it functionally",
             "low": "Panic and leave her to cover for both of you"
-          }
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "final_day": true
         }
       ]
     },
@@ -214,7 +270,12 @@
         "mid": "Pretend it didn't happen and hope she does the same",
         "low": "Send a panicked weird message that makes it worse"
       },
-      "notes": "This event has high entertainment value and can actually INCREASE affection significantly if handled well — it breaks the ice in an unexpected way."
+      "notes": "This event has high entertainment value and can actually INCREASE affection significantly if handled well — it breaks the ice in an unexpected way.",
+      "eligible_segments": [
+        "morning_activity",
+        "activity_after_lunch",
+        "activity_after_dinner"
+      ]
     },
     {
       "id": "library_late_night",
@@ -229,7 +290,10 @@
         "high": "Go over quietly, exchange a few exhausted words, maybe offer to grab drinks from the vending machine",
         "mid": "Wave and smile, leave it at that",
         "low": "Ignore it or say something annoying about her major vs yours"
-      }
+      },
+      "eligible_segments": [
+        "activity_after_dinner"
+      ]
     },
     {
       "id": "sad_story",
@@ -244,7 +308,10 @@
         "high": "Send a casual, non-pushy message — 'hey, you okay?' Nothing more. Give her room.",
         "mid": "React to the story with an emoji and leave it",
         "low": "Don't respond, or send something overwhelming and over-the-top"
-      }
+      },
+      "eligible_segments": [
+        "activity_after_dinner"
+      ]
     },
     {
       "id": "group_outing_becomes_two",
@@ -267,7 +334,11 @@
         "high": "Say yes without making it a big deal — treat it like any other hangout and let it be what it is",
         "mid": "Agree but seem slightly awkward about it",
         "low": "Make it weird or suggest cancelling"
-      }
+      },
+      "eligible_segments": [
+        "activity_after_lunch",
+        "activity_after_dinner"
+      ]
     },
     {
       "id": "borrow_notes",
@@ -282,7 +353,11 @@
         "high": "Focused but naturally conversational — study first, talk when it happens organically",
         "mid": "Keep it academic and friendly",
         "low": "Use it as an excuse to not actually study or make her feel like she owes you"
-      }
+      },
+      "eligible_segments": [
+        "morning_activity",
+        "activity_after_lunch"
+      ]
     },
     {
       "id": "someone_asks_her_out",
@@ -298,7 +373,10 @@
         "mid": "Sit on it and wait",
         "low": "Act weird around her, become distant, or bring it up to her directly in an awkward way"
       },
-      "notes": "If affection is already high (60+) when this event triggers, Hiyori will turn the other person down on her own. Player doesn't know this."
+      "notes": "If affection is already high (60+) when this event triggers, Hiyori will turn the other person down on her own. Player doesn't know this.",
+      "eligible_segments": [
+        "activity_after_lunch"
+      ]
     },
     {
       "id": "rain_umbrella",
@@ -313,7 +391,11 @@
         "high": "Offer without making it theatrical. Walk with her. Don't make it a moment.",
         "mid": "Offer and let her decide",
         "low": "Don't offer, or make such a big deal of offering that it becomes weird"
-      }
+      },
+      "eligible_segments": [
+        "activity_after_lunch",
+        "activity_after_dinner"
+      ]
     },
     {
       "id": "yuki_late_night_text",
@@ -329,7 +411,10 @@
         "mid": "Reply briefly and keep it short",
         "low_yuki": "Leave it on read or give a one-word reply"
       },
-      "notes": "This event is one of several that contributes to Yuki's hidden affection meter. Player does not know this meter exists."
+      "notes": "This event is one of several that contributes to Yuki's hidden affection meter. Player does not know this meter exists.",
+      "eligible_segments": [
+        "activity_after_dinner"
+      ]
     },
     {
       "id": "yuki_econs_help",
@@ -345,7 +430,11 @@
         "mid": "Help quickly and move on",
         "low_yuki": "Brush her off or make her feel like she's wasting your time"
       },
-      "notes": "Contributes to Yuki's hidden affection meter."
+      "notes": "Contributes to Yuki's hidden affection meter.",
+      "eligible_segments": [
+        "morning_activity",
+        "activity_after_lunch"
+      ]
     },
     {
       "id": "yuki_dinner_invite",
@@ -361,7 +450,10 @@
         "mid": "Keep it casual and friendly",
         "low_yuki": "Spend the dinner talking mostly about Hiyori"
       },
-      "notes": "A meaningful contributor to Yuki's hidden affection meter — this event tests whether the player treats Yuki as her own person."
+      "notes": "A meaningful contributor to Yuki's hidden affection meter — this event tests whether the player treats Yuki as her own person.",
+      "eligible_segments": [
+        "activity_after_dinner"
+      ]
     },
     {
       "id": "hiyori_sick",
@@ -376,7 +468,11 @@
         "high": "Check in directly, offer to drop off something practical (soup, medicine) without making it a big gesture",
         "mid": "Send a text wishing her well",
         "low": "Don't do anything or wait for someone else to handle it"
-      }
+      },
+      "eligible_segments": [
+        "activity_after_lunch",
+        "activity_after_dinner"
+      ]
     },
     {
       "id": "hiyori_cycling_invite",
@@ -391,7 +487,11 @@
         "high": "Say yes plainly, show up prepared, don't make a big deal of the invitation",
         "mid": "Say maybe and leave it uncertain",
         "low": "Decline dismissively or make a joke that undercuts the invitation"
-      }
+      },
+      "eligible_segments": [
+        "morning_activity",
+        "activity_after_lunch"
+      ]
     },
     {
       "id": "exchange_rumor",
@@ -407,7 +507,11 @@
         "mid": "Acknowledge it lightly and move on with her",
         "low": "Push for more details than she's comfortable giving, or dismiss it as unimportant"
       },
-      "notes": "Plants the narrative seed for the Day 30 exchange/ending twist. Should fire at least once before day 25 if possible."
+      "notes": "Plants the narrative seed for the Day 30 exchange/ending twist. Should fire at least once before day 25 if possible.",
+      "eligible_segments": [
+        "activity_after_lunch",
+        "activity_after_dinner"
+      ]
     },
     {
       "id": "shiori_checks_in",
@@ -423,7 +527,510 @@
         "mid": "Give a vague, deflective answer",
         "low": "Overshare inappropriately or dismiss her concern"
       },
-      "notes": "Whatever the player tells Shiori here becomes part of Shiori's knowledge base going forward."
+      "notes": "Whatever the player tells Shiori here becomes part of Shiori's knowledge base going forward.",
+      "eligible_segments": [
+        "morning_activity",
+        "activity_after_lunch"
+      ]
+    },
+    {
+      "id": "hall_sports_tournament",
+      "title": "Inter-Hall Sports Tournament",
+      "description": "Adrian's hall is short-handed for the inter-hall tournament, and Hiyori's cycling club has been sharing the sports hall for training all week. The two groups end up doing warm-ups together more days than not.",
+      "stage_required": "stranger",
+      "affection_required": 0,
+      "type": "extended_event",
+      "duration_days": 3,
+      "player_action_prompt": "Training's about to start and Hiyori's group is stretching two mats over. What do you do?",
+      "affection_outcomes": {
+        "high": "Strike up an easy, low-pressure conversation without making it a big deal",
+        "mid": "Nod and keep to your own group",
+        "low": "Awkwardly avoid eye contact or make it weird"
+      },
+      "notes": "Active event. Deliberately low-affection-accessible and physical/energetic — a tonal break from the academic-flavored arcs.",
+      "sub_events": [
+        {
+          "id": "hall_sports_training_mishap",
+          "day_offset": "1-2",
+          "description": "A stray ball from Adrian's side nearly takes Hiyori out mid-drill. She's fine, just glaring at whoever threw it.",
+          "player_action_prompt": "She's looking right at you, probably assuming it was your team's fault. What do you do?",
+          "affection_outcomes": {
+            "high": "Own it, apologize properly, offer to grab her water bottle or whatever rolled away",
+            "mid": "Apologize on behalf of the team and move on",
+            "low": "Deflect blame or laugh it off without actually apologizing"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ]
+        },
+        {
+          "id": "hall_sports_tournament_day",
+          "day_offset": "3",
+          "description": "Tournament day. Hiyori's cycling club is there supporting a different event, but she swings by Adrian's match for a bit between her own commitments.",
+          "player_action_prompt": "You spot her in the small crowd during a break. Do you acknowledge it?",
+          "affection_outcomes": {
+            "high": "Give her a quick wave or nod between plays, stay focused otherwise",
+            "mid": "Notice her but don't do anything about it",
+            "low": "Get distracted enough that it visibly affects your game"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "final_day": true
+        }
+      ]
+    },
+    {
+      "id": "cycling_trip",
+      "title": "The Cycling Trip",
+      "description": "What started as Hiyori's offhand cycling club invite turns into an actual weekend trip along the park connectors — further and longer than the usual 'easy beginner route' framing suggested.",
+      "stage_required": "acquaintance",
+      "affection_required": 10,
+      "type": "extended_event",
+      "duration_days": 2,
+      "player_action_prompt": "The group's spread out further than expected and you end up riding near the back with just Hiyori. What's the conversation like?",
+      "affection_outcomes": {
+        "high": "Easy, unforced conversation — let comfortable silences happen too",
+        "mid": "Small talk, nothing memorable either way",
+        "low": "Force conversation or make her feel like she has to entertain you"
+      },
+      "notes": "Active event. Natural escalation of hiyori_cycling_invite. Short duration — uses the plain probability/force-out mechanic, no locked final-day sub-event.",
+      "sub_events": [
+        {
+          "id": "cycling_trip_getting_lost",
+          "day_offset": "1",
+          "description": "The group takes a wrong turn and splits up without meaning to. It's just you and Hiyori for a while, trying to find the right path back.",
+          "player_action_prompt": "You're both a little lost and losing daylight. How do you handle it?",
+          "affection_outcomes": {
+            "high": "Stay calm, make it into something to laugh about rather than stress over",
+            "mid": "Focus on just fixing the problem, minimal conversation",
+            "low": "Get visibly stressed or blame her for the wrong turn"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ]
+        },
+        {
+          "id": "cycling_trip_scenic_stop",
+          "day_offset": "2",
+          "description": "The group stops to rest at a scenic point along the route. Everyone's spread out; you end up sitting near Hiyori while she catches her breath.",
+          "player_action_prompt": "It's quiet, and neither of you has said anything for a bit. Do you break the silence?",
+          "affection_outcomes": {
+            "high": "Say something genuine, not performative, about the ride or the view",
+            "mid": "Stay comfortably quiet without it feeling awkward",
+            "low": "Fill the silence with something forced or off-topic"
+          },
+          "eligible_segments": [
+            "activity_after_lunch"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "yuki_econs_crunch",
+      "title": "Yuki's Case Competition",
+      "description": "The 'help me with a basic stats concept' favor turns out to be prep for an actual econs case competition Yuki's entering. She won't admit she's nervous about it, but she keeps texting to schedule 'just one more session.'",
+      "stage_required": "stranger",
+      "affection_required": 0,
+      "yuki_affection_required": 10,
+      "type": "extended_event",
+      "duration_days": 4,
+      "player_action_prompt": "Yuki's laid out her notes but hasn't actually started explaining anything yet — she's stalling. What do you do?",
+      "affection_outcomes": {
+        "high": "Let her set the pace, don't push, just be present",
+        "mid": "Get straight to the material",
+        "low": "Call out that she's stalling in a way that puts her on the spot"
+      },
+      "notes": "Yuki's route arc — gated on yuki_affection rather than the main Hiyori-affection meter (new field: yuki_affection_required), matching her route's stage-gated, attention-driven design. First extended arc for her route; previously only single-scene secret_end_events existed.",
+      "sub_events": [
+        {
+          "id": "yuki_econs_crunch_late_session",
+          "day_offset": "2-3",
+          "description": "A study session runs later than planned. Yuki doesn't seem in a hurry to end it, even after the material's covered.",
+          "player_action_prompt": "The actual studying wrapped up a while ago but neither of you has moved to leave. What do you do?",
+          "affection_outcomes": {
+            "high": "Let the conversation drift somewhere more personal, follow her lead",
+            "mid": "Wrap up efficiently and head out",
+            "low": "Make it awkward by pointing out you're both just sitting there"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ]
+        },
+        {
+          "id": "yuki_econs_crunch_competition_day",
+          "day_offset": "4",
+          "description": "Competition day. Yuki's visibly more nervous than she's let on all week. She finds you beforehand, ostensibly to return a borrowed textbook.",
+          "player_action_prompt": "She's clearly not really here about the textbook. What do you say?",
+          "affection_outcomes": {
+            "high": "Say something that actually settles her nerves, without making a big deal of it",
+            "mid": "Wish her luck and let her go",
+            "low": "Miss that she's nervous entirely, or make a joke that lands wrong"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "final_day": true
+        }
+      ]
+    },
+    {
+      "id": "finals_week",
+      "title": "Finals Week",
+      "description": "Finals season hits everyone at once. The library run-ins with Hiyori stop being occasional and start being nightly — same floor, same corner, same collective exhaustion.",
+      "stage_required": "friend",
+      "affection_required": 35,
+      "type": "extended_event",
+      "duration_days": 5,
+      "player_action_prompt": "You've both been at the library for hours and it's clear neither of you is retaining anything anymore. What do you do?",
+      "affection_outcomes": {
+        "high": "Suggest an actual break — food, fresh air, something that isn't studying",
+        "mid": "Keep grinding separately, minimal interaction",
+        "low": "Vent your own stress at her or make the mood worse"
+      },
+      "notes": "Active event. Escalates library_late_night into a sustained arc. Timed for late in the 30-day window, thematically tied to end-of-semester.",
+      "sub_events": [
+        {
+          "id": "finals_week_stress_vent",
+          "day_offset": "2-3",
+          "description": "Hiyori finally cracks a little — not dramatically, just a tired, honest moment about how much this semester's been wearing her down.",
+          "player_action_prompt": "She's said more than she probably meant to. How do you respond?",
+          "affection_outcomes": {
+            "high": "Actually listen, don't immediately try to fix or minimize it",
+            "mid": "Offer a generic reassurance and move on",
+            "low": "Change the subject or make it about your own stress instead"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ]
+        },
+        {
+          "id": "finals_week_post_exam_food",
+          "day_offset": "4",
+          "description": "One of the harder papers just ended. Everyone's drained. Someone suggests food — somehow it ends up being just you and Hiyori who actually go.",
+          "player_action_prompt": "First real meal either of you has had that isn't instant noodles in days. What's the vibe?",
+          "affection_outcomes": {
+            "high": "Relaxed, a little giddy from the exam being over — let that show",
+            "mid": "Pleasant but low-energy, both too tired for much",
+            "low": "Immediately start stressing about the next paper instead of enjoying the moment"
+          },
+          "eligible_segments": [
+            "activity_after_lunch",
+            "activity_after_dinner"
+          ]
+        },
+        {
+          "id": "finals_week_exam_day",
+          "day_offset": "5",
+          "description": "The last paper. You run into Hiyori right as she's walking out of the hall, visibly relieved it's over.",
+          "player_action_prompt": "It's officially done. What do you say to her?",
+          "affection_outcomes": {
+            "high": "Something genuine about getting through the semester, not just a generic 'good job'",
+            "mid": "A quick, low-effort congratulations",
+            "low": "Immediately pivot to your own results/stress instead of hers"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "final_day": true
+        }
+      ]
+    },
+    {
+      "id": "exchange_decision",
+      "title": "The Exchange Decision",
+      "description": "The exchange program Hiyori mentioned 'on a whim' turns out to be very real — she's gotten in, and now has to actually decide whether to go. She's not telling most people yet.",
+      "stage_required": "friend",
+      "affection_required": 50,
+      "type": "extended_event",
+      "duration_days": 4,
+      "player_action_prompt": "Hiyori tells you about the offer before she's told almost anyone else. Why do you think she's telling you?",
+      "affection_outcomes": {
+        "high": "Ask what she actually wants, not what she thinks she should do",
+        "mid": "Listen without pushing either way",
+        "low": "Make it about how it affects you instead of supporting her decision"
+      },
+      "notes": "Pays off the exchange_rumor thread planted earlier — per README's design principle, this late-game twist should feel earned, not arbitrary. Highest-stakes extended event; recommend prioritizing this one first if only writing a subset for now.",
+      "sub_events": [
+        {
+          "id": "exchange_decision_weighing_it",
+          "day_offset": "2",
+          "description": "Hiyori's clearly been going back and forth on this for days. She brings it up again, unprompted, like she's still trying to talk herself into a decision.",
+          "player_action_prompt": "She's thinking out loud more than actually asking for input. What do you do?",
+          "affection_outcomes": {
+            "high": "Ask good questions instead of giving your opinion outright",
+            "mid": "Give a neutral, safe response",
+            "low": "Push your own preference onto her decision"
+          },
+          "eligible_segments": [
+            "activity_after_lunch",
+            "activity_after_dinner"
+          ]
+        },
+        {
+          "id": "exchange_decision_the_answer",
+          "day_offset": "4",
+          "description": "Hiyori's made her decision. She tells you before anyone else finds out.",
+          "player_action_prompt": "This is a real moment for her, whichever way it went. How do you react?",
+          "affection_outcomes": {
+            "high": "Be genuinely present for her, whatever she decided, without making it about your own feelings on the matter",
+            "mid": "Acknowledge it and move on",
+            "low": "React in a way that's clearly about how it affects you"
+          },
+          "eligible_segments": [
+            "activity_after_lunch",
+            "activity_after_dinner"
+          ],
+          "final_day": true
+        }
+      ]
+    },
+    {
+      "id": "shiori_interview_crunch",
+      "title": "Shiori's Interview Crunch",
+      "description": "Shiori's got a CS internship interview coming up and, uncharacteristically, actually asks Adrian for help prepping — usually she's the one giving advice, not asking for it.",
+      "stage_required": "acquaintance",
+      "affection_required": 10,
+      "type": "extended_event",
+      "duration_days": 3,
+      "player_action_prompt": "Shiori's running through a practice answer and it's clearly not landing, even to her. What do you do?",
+      "affection_outcomes": {
+        "high": "Give honest, specific feedback rather than just reassurance",
+        "mid": "Offer generic encouragement",
+        "low": "Brush off the mock interview as not a big deal"
+      },
+      "notes": "Not a Hiyori-focused arc — deepens Adrian's friendship with Shiori directly, and gives her a moment of vulnerability outside her usual protective/advisory role.",
+      "sub_events": [
+        {
+          "id": "shiori_interview_crunch_guard_down",
+          "day_offset": "2",
+          "description": "Mid-prep, Shiori admits — almost like it slips out — that she's more nervous about this than she's letting on.",
+          "player_action_prompt": "This isn't the version of Shiori you usually see. What do you do?",
+          "affection_outcomes": {
+            "high": "Take it seriously instead of brushing past it",
+            "mid": "Acknowledge it briefly and get back to prep",
+            "low": "Make a joke that undercuts the moment"
+          },
+          "eligible_segments": [
+            "activity_after_lunch",
+            "activity_after_dinner"
+          ]
+        },
+        {
+          "id": "shiori_interview_crunch_interview_day",
+          "day_offset": "3",
+          "description": "Interview day. Shiori texts you right after — she wants to know your read before she even tells you how it went.",
+          "player_action_prompt": "She's asking what you think before revealing anything herself. What do you say?",
+          "affection_outcomes": {
+            "high": "Be genuinely encouraging based on the actual prep work, not just empty positivity",
+            "mid": "Give a brief, generic 'I'm sure it went fine'",
+            "low": "Deflect or seem uninterested in the outcome"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "final_day": true
+        }
+      ]
+    },
+    {
+      "id": "hiyori_tutoring_gig",
+      "title": "Hiyori's Tutoring Gig",
+      "description": "Hiyori tutors secondary schoolers on the side — something she doesn't really advertise. Adrian ends up helping her prep materials for an upcoming open house session.",
+      "stage_required": "acquaintance",
+      "affection_required": 20,
+      "type": "extended_event",
+      "duration_days": 3,
+      "player_action_prompt": "You're watching Hiyori explain a concept to a whiteboard mock-up, completely different register than how she normally talks to you. What do you do?",
+      "affection_outcomes": {
+        "high": "Notice and genuinely appreciate this side of her without making it weird",
+        "mid": "Help with the practical prep work without commenting on it",
+        "low": "Tease her about it in a way that makes her clam up"
+      },
+      "notes": "Shows Hiyori in caretaker mode — a real change of register from her usual tsundere deflection with Adrian specifically.",
+      "sub_events": [
+        {
+          "id": "hiyori_tutoring_gig_prep_session",
+          "day_offset": "1-2",
+          "description": "Late prep session, surrounded by worksheets and practice problems. Hiyori's noticeably more relaxed talking about teaching than she usually is talking about herself.",
+          "player_action_prompt": "She's in her element here in a way you don't usually see. Do you say anything about it?",
+          "affection_outcomes": {
+            "high": "Point it out gently, in a way that's clearly a compliment, not a callout",
+            "mid": "Stay focused on the task without commenting",
+            "low": "Make an offhand comment that embarrasses her out of it"
+          },
+          "eligible_segments": [
+            "activity_after_lunch",
+            "activity_after_dinner"
+          ]
+        },
+        {
+          "id": "hiyori_tutoring_gig_open_house",
+          "day_offset": "3",
+          "description": "Open house day. Hiyori's clearly good at this — patient, clear, the secondary schoolers actually like her. She catches you watching afterward.",
+          "player_action_prompt": "She just caught you watching her teach. What do you say?",
+          "affection_outcomes": {
+            "high": "Say something specific and genuine about what you noticed, not generic praise",
+            "mid": "Give a brief compliment and move on",
+            "low": "Deflect or act like you weren't paying attention"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "final_day": true
+        }
+      ]
+    },
+    {
+      "id": "hall_camp_weekend",
+      "title": "Hall Camp Weekend",
+      "description": "An overnight hall camp — the usual mix of forced team games, a campfire, and too many people crammed into too little space. Hiyori's there as a guest of a friend in the hall.",
+      "stage_required": "friend",
+      "affection_required": 30,
+      "type": "extended_event",
+      "duration_days": 2,
+      "player_action_prompt": "A game puts you and Hiyori on the same team, working closer together than either of you probably planned for.",
+      "affection_outcomes": {
+        "high": "Play it easy and collaborative, let the forced proximity actually be fun",
+        "mid": "Go through the motions without much energy",
+        "low": "Make the pairing awkward by overthinking it visibly"
+      },
+      "notes": "Active event. Leans more directly into romantic-tension energy than most of the other arcs. Short duration — plain probability/force-out mechanic, no locked final-day sub-event.",
+      "sub_events": [
+        {
+          "id": "hall_camp_weekend_campfire",
+          "day_offset": "1",
+          "description": "Campfire night. The group's thinned out as people wander off to sleep, and somehow you and Hiyori end up as two of the last few still sitting there.",
+          "player_action_prompt": "It's quiet except for the fire. What do you do?",
+          "affection_outcomes": {
+            "high": "Let the conversation go somewhere more real than the earlier group banter",
+            "mid": "Keep things light, stick to safe topics",
+            "low": "Force the moment into something it isn't"
+          },
+          "eligible_segments": [
+            "activity_after_dinner"
+          ]
+        },
+        {
+          "id": "hall_camp_weekend_morning_after",
+          "day_offset": "2",
+          "description": "Everyone's exhausted and unglamorous the morning after — bad sleep, messy hair, no one at their best. Hiyori included.",
+          "player_action_prompt": "She looks a little self-conscious about how she looks right now. What do you do?",
+          "affection_outcomes": {
+            "high": "Act completely normal about it, don't make it a thing",
+            "mid": "Don't acknowledge it either way",
+            "low": "Comment on it in a way that makes her more self-conscious"
+          },
+          "eligible_segments": [
+            "morning_activity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "when_shes_sick",
+      "title": "When She's Sick",
+      "description": "What started as Hiyori going quiet in the group chat turns into an actual multi-day flu. Shiori's been checking on her, but she can't always be there.",
+      "stage_required": "friend",
+      "affection_required": 35,
+      "type": "extended_event",
+      "duration_days": 3,
+      "player_action_prompt": "Shiori mentions she can't check on Hiyori today — exam clash. Someone should probably bring her something to eat.",
+      "affection_outcomes": {
+        "high": "Offer to go yourself without making it a whole production",
+        "mid": "Ask Shiori to sort it out instead of stepping up yourself",
+        "low": "Don't offer at all"
+      },
+      "notes": "Escalates hiyori_sick into a sustained caretaking arc — quieter and more emotionally intimate than most of the others, without needing an external plot device.",
+      "sub_events": [
+        {
+          "id": "when_shes_sick_bringing_food",
+          "day_offset": "1-2",
+          "description": "Hiyori answers the door looking rough — not her usual composed self at all — and is clearly caught off guard that you actually showed up.",
+          "player_action_prompt": "She's letting her guard down more than usual just because she's too tired to keep it up. What do you do?",
+          "affection_outcomes": {
+            "high": "Keep it low-key and practical — don't make her perform being okay for you",
+            "mid": "Drop off the food and don't stay long",
+            "low": "Make her feel like she has to entertain you despite being sick"
+          },
+          "eligible_segments": [
+            "activity_after_lunch",
+            "activity_after_dinner"
+          ]
+        },
+        {
+          "id": "when_shes_sick_first_day_back",
+          "day_offset": "3",
+          "description": "Hiyori's back to normal, more or less, and immediately tries to downplay the whole thing when she sees you.",
+          "player_action_prompt": "She's clearly trying to act like it wasn't a big deal. Do you let her?",
+          "affection_outcomes": {
+            "high": "Let her downplay it if she wants, but make clear you're glad she's okay",
+            "mid": "Go along with the downplaying completely",
+            "low": "Push the point and embarrass her about needing help"
+          },
+          "eligible_segments": [
+            "morning_activity",
+            "activity_after_lunch"
+          ],
+          "final_day": true
+        }
+      ]
+    },
+    {
+      "id": "the_other_guy",
+      "title": "The Other Guy",
+      "description": "The guy who asked Hiyori out doesn't take the 'let me think about it' as a no. He keeps showing up — coincidentally, allegedly — over the next few days.",
+      "stage_required": "friend",
+      "affection_required": 40,
+      "type": "extended_event",
+      "duration_days": 4,
+      "player_action_prompt": "You spot him talking to Hiyori again, and this is the third time this week. What do you do?",
+      "affection_outcomes": {
+        "high": "Stay calm and let Hiyori handle it herself, be there if she wants to talk after",
+        "mid": "Notice it but don't do anything",
+        "low": "Get visibly jealous or possessive about it"
+      },
+      "notes": "The one arc built explicitly around jealousy/rivalry — gives the player real agency in how to handle it rather than just reacting to something happening to Hiyori.",
+      "sub_events": [
+        {
+          "id": "the_other_guy_she_vents",
+          "day_offset": "2",
+          "description": "Hiyori brings it up herself, a little frustrated — he's not being pushy exactly, just persistent in a way she doesn't know how to shut down without being harsh.",
+          "player_action_prompt": "She's asking, in a roundabout way, what you think she should do. How do you respond?",
+          "affection_outcomes": {
+            "high": "Support whatever she decides without pushing your own stake in it",
+            "mid": "Give a neutral, uninvested answer",
+            "low": "Make it obvious you want her to reject him, for your own reasons"
+          },
+          "eligible_segments": [
+            "activity_after_lunch",
+            "activity_after_dinner"
+          ]
+        },
+        {
+          "id": "the_other_guy_her_answer",
+          "day_offset": "4",
+          "description": "Hiyori finally gives him a clear answer. She tells you about it after, watching your reaction more closely than she'd probably admit.",
+          "player_action_prompt": "She's telling you how it went and clearly gauging your reaction. What do you do?",
+          "affection_outcomes": {
+            "high": "React genuinely but without making it about your own feelings for her",
+            "mid": "Acknowledge it briefly and move on",
+            "low": "Overreact in a way that makes your own feelings obvious and puts her on the spot"
+          },
+          "eligible_segments": [
+            "activity_after_lunch",
+            "activity_after_dinner"
+          ],
+          "final_day": true
+        }
+      ]
     }
   ],
   "endings": {
