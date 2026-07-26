@@ -35,10 +35,9 @@ A 0–100 score for Hiyori (and a separate hidden meter for Yuki) that is **neve
 
 ### Daily Flow
 1. Player sees their schedule for the day (some free time slots, some fixed commitments).
-2. During free time, the player can text Hiyori, Shiori, or Yuki, or do nothing.
-3. **Random events fire unpredictably** — even during "busy" schedule blocks — with higher probability during free time. The player cannot fully predict when or what.
-4. Action points (3/day) gate how much the player can do — chatting costs 1, events cost 2.
-5. At end of day, a batch evaluation runs:
+2. Each free-time slot converts to a chat-time budget (e.g. 5 hours of in-game free time ≈ 30 minutes of actual chatting — exact conversion rate TBD) rather than a fixed action-point count. During free time, the player can spend from that budget to text Hiyori, Shiori, or Yuki, or do nothing. No separate action-point system — the schedule itself is the scarcity.
+3. **Random events fire unpredictably** — even during "busy" schedule blocks — with higher probability during free time. The player cannot fully predict when or what, and events aren't gated by the chat-time budget above.
+4. At end of day, a batch evaluation runs:
    - Updates the hidden affection score and relationship tier
    - Updates each NPC's individual knowledge base (what they know/feel about Adrian, based only on what they personally experienced that day)
    - Generates a new Hiyori diary entry if a trigger condition is met
@@ -140,11 +139,13 @@ Adrian does **not** have a dynamic knowledge base — only Hiyori, Shiori, and Y
 - Supabase schema live (`lore_chunks`, `game_state`, `messages`, `diary_entries`, `events_log`) — note the live `lore_chunks` table and RPCs diverged from the originally drafted `supabase/schema.sql` (see `lib/supabase.ts` for the current, accurate contract)
 - Full RAG ingestion pipeline built and verified end-to-end: `lib/chunking.ts` → `lib/embeddings.ts` → `lib/supabase.ts` → `scripts/ingest.ts` → `scripts/test-retrieval.ts`
 - 61 static lore chunks embedded and ingested into `lore_chunks`; retrieval manually verified against real queries
+- Gemma integration for NPC dialogue (`lib/gemma.ts`'s `generateDialogue`), grounded in retrieved lore + relationship stage
+- Relationship tier/stage + diary-trigger logic (`lib/relationship.ts`)
+- End-of-day batch evaluation (`lib/batch-eval.ts`'s `runEndOfDayBatchEval`) — updates per-NPC knowledge chunks, affection score, relationship stage, and diary entries (with RAG re-indexing). Verified end-to-end against the live DB + Gemini API (`scripts/tmp-test-batch-eval.ts`); independent Gemini calls run concurrently with a retry-once-after-60s wrapper for rate-limit resilience
 
 **Next up:**
-- Gemma integration for NPC dialogue + affection delta output
-- End-of-day batch evaluation function
-- Wire `is_static`/`session_id` scoping back into retrieval once dynamic content exists (see gap note above)
+- Wire `is_static`/`session_id` scoping back into retrieval (see gap note above) — now a real blocker, not just a future one: the batch eval above already writes dynamic chunks that retrieval can't see yet
+- Game loop / orchestrator wiring `generateDialogue` + retrieval + `runEndOfDayBatchEval` into an actual playable daily flow (chat-time budget, end-of-day trigger)
 - Next.js frontend (chat UI, schedule view, event prompts)
 - Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
 
