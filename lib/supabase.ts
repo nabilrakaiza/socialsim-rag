@@ -66,12 +66,14 @@ export async function insertLoreChunks(
 export async function matchLoreChunks(
   queryEmbedding: number[],
   character: LoreChunk['character'],
+  sessionId: string | null = null,
   matchCount: number = 5,
   similarityThreshold: number = 0.5
 ): Promise<MatchedChunk[]> {
   const { data, error } = await supabase.rpc('match_lore_chunks', {
     query_embedding: queryEmbedding,
     match_character: character,
+    match_session_id: sessionId,
     match_count: matchCount,
     similarity_threshold: similarityThreshold,
   });
@@ -86,12 +88,14 @@ export async function matchLoreChunks(
 export async function matchLoreMultiCharacter(
   queryEmbedding: number[],
   characters: LoreChunk['character'][],
+  sessionId: string | null = null,
   matchCount: number = 8,
   similarityThreshold: number = 0.5
 ): Promise<MultiMatchedChunk[]> {
   const { data, error } = await supabase.rpc('match_lore_multi_character', {
     query_embedding: queryEmbedding,
     match_characters: characters,
+    match_session_id: sessionId,
     match_count: matchCount,
     similarity_threshold: similarityThreshold,
   });
@@ -123,11 +127,10 @@ export interface GameState {
   ending_id: string | null;
 }
 
-// role reuses DialogueTurn's 'player' | 'npc' union — messages rows are
-// assumed to be written with those same values by whatever chat/game
-// loop ends up inserting them (not built yet). Worth confirming once
-// that exists, since nothing enforces it at the DB level (role is a
-// plain text column).
+// role reuses DialogueTurn's 'player' | 'npc' union — confirmed as of
+// lib/chat.ts's sendPlayerMessage, the only writer of messages rows so
+// far. Nothing enforces this at the DB level (role is a plain text
+// column), so any future writer needs to keep using the same values.
 export interface Message {
   id: string;
   session_id: string;
@@ -200,6 +203,16 @@ export async function insertDiaryEntry(
   entry: Omit<DiaryEntry, 'id' | 'created_at'>
 ): Promise<void> {
   const { error } = await supabase.from('diary_entries').insert(entry);
+
+  if (error){
+    throw new Error(error.message);
+  }
+}
+
+export async function insertMessage(
+  message: Omit<Message, 'id' | 'created_at'>
+): Promise<void> {
+  const { error } = await supabase.from('messages').insert(message);
 
   if (error){
     throw new Error(error.message);

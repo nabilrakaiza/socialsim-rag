@@ -12,7 +12,7 @@ const playerMessage = 'hey, what did you get up to this weekend?';
 
 async function main() {
   const queryEmbedding = await embedText(playerMessage);
-  const chunks = await matchLoreChunks(queryEmbedding, 'hiyori', 5, 0.5);
+  const chunks = await matchLoreChunks(queryEmbedding, 'hiyori', null, 5, 0.5);
 
   console.log(`retrieved ${chunks.length} chunks:`);
   chunks.forEach((c) => console.log(`  - (${c.similarity.toFixed(3)}) ${c.source_file}`));

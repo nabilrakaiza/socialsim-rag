@@ -20,7 +20,7 @@ const query = process.argv[2] ?? 'does she has a boyfriend before, and how was i
 
 async function main() {
   const queryEmbedding = await embedText(query);
-  const result = await matchLoreChunks(queryEmbedding, 'hiyori', 5, 0.5);
+  const result = await matchLoreChunks(queryEmbedding, 'hiyori', null, 5, 0.5);
 
   result.forEach((f) => {
     console.log(f.content);
