@@ -102,7 +102,7 @@ Confession is **never gated** by affection — the player can shoot their shot a
 | Embeddings | Google `gemini-embedding-001`, truncated to 768-dim (`text-embedding-004` was shut down by Google before this project reached ingestion) |
 | Vector DB | Supabase pgvector |
 | Database | Supabase (game state, messages, diary entries, events log) |
-| Frontend | Next.js (App Router) + React + TypeScript |
+| Frontend | Next.js (App Router) + React + TypeScript + Tailwind 4 + Framer Motion |
 | Backend | Next.js Route Handlers |
 | Deployment | Vercel |
 
@@ -138,7 +138,9 @@ Every chunk (static lore or dynamically generated) lives in one table, distingui
 
 This lets retrieval pull `is_static = true OR session_id = current_session` in one query — base lore plus whatever this specific playthrough has generated so far. Both `match_lore_chunks` and `match_lore_multi_character` take a `match_session_id` parameter implementing exactly this filter (added via the `add_session_scoping_to_lore_retrieval` migration).
 
-> **Note on the `events` character bucket:** nothing currently retrieves it. `lib/events.ts` resolves events by ID from `events.json` directly, so there's no reason to find them by embedding search. The ingested `events` chunks are effectively vestigial, and they're also stale — the 10 arcs added after the original ingestion run aren't in the table. Re-running `scripts/ingest.ts` would duplicate the existing 61 static rows rather than refresh them, so that needs a clear-first step before it's safe. Left alone deliberately until something actually needs event lore retrieved.
+> **Note on the `events` character bucket:** nothing in the game retrieves it yet — `lib/events.ts` resolves events by id from `events.json` directly, so there's no reason to find them by embedding search. It's kept current regardless, since it costs nothing and makes event lore available the moment something wants it.
+>
+> `scripts/ingest.ts` is **idempotent**: it clears before inserting, scoped to `is_static = true`. That scoping matters — dynamic chunks are a playthrough's generated memory (knowledge updates, diary entries), so deleting those would erase what the characters remember. Only base lore is disposable, because it rebuilds from `lore/` on demand. Without the clear step a re-run duplicated every chunk rather than refreshing it, which is precisely why the events content sat stale for days.
 
 ### Chunking strategy
 Hybrid paragraph + section-heading split:
@@ -176,12 +178,14 @@ The browser never imports `lib/` at runtime. `lib/supabase.ts` holds `SERVICE_RO
 | `POST /api/day/start` | `startDay` | Schedule + which events fire in which segment |
 | `POST /api/chat` | `sendPlayerMessage` | ~14s per reply |
 | `POST /api/event/respond` | `recordEventResponse` | Persists free text; scoring waits for end of day |
-| `POST /api/day/end` | `endDay` | ~1m40s. **Streams NDJSON progress** — see below |
+| `POST /api/day/end` | `endDay` | 1m40s–4m24s. **Streams NDJSON progress** — see below |
 | `POST /api/confess` | `confess` | Ends the run |
 
 There are no accounts. Whoever holds the session id holds the save, which is why it's a UUID; the client keeps it in `localStorage`.
 
-**End of day streams rather than returning once.** It takes around a minute and a half, and silence for that long is indistinguishable from a hang, so `endDay` emits a stage as each phase actually begins (`scoring`, `reflecting`, `diary`, `saving`) and the route forwards them as newline-delimited JSON. The progress shown is real, not a timed guess. Measuring it also located the cost: **diary generation is roughly 60 of those 90+ seconds**, and everything else is comparatively quick.
+**End of day streams rather than returning once.** Measured runs range from **1m40s to 4m24s** — that spread is raw LLM latency, with no retries or model failures in between — and silence for that long is indistinguishable from a hang. So `endDay` emits a stage as each phase actually begins (`scoring`, `reflecting`, `diary`, `saving`) and the route forwards them as newline-delimited JSON. The progress shown is real, not a timed guess. Measuring also located the cost: **diary generation alone is ~60s**, and everything else is comparatively quick.
+
+> **Known risk before deploying:** Vercel's Hobby plan allows **300s as both the default and the maximum** function duration (Pro reaches 800s). The slowest observed end-of-day used 264s of that — 88% — so a slower run returns a 504 and strands the player mid-day-end. The durable fix is splitting this into two requests (score events, then batch-eval) so neither approaches the cap. Until then the UI states the wait can reach about five minutes.
 
 **Model choice is split by whether anyone is waiting.** Player-facing dialogue leads with `gemini-3.1-flash-lite`; end-of-day batch work leads with Gemma, which has the higher rate limit and is what the prompts were tuned against. Each is a fallback chain, so a rate limit falls through to the other model instead of failing the call — and leading them with different models splits load across two quota pools, so batch work can't starve the player's chat.
 
@@ -211,11 +215,29 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - Confession (`confess()`), resolving immediately at any point in the run
 
 - Next.js app and the full API surface, plus session creation (`startNewGame` — nothing minted a `game_state` row before, so there was no way to begin a playthrough). Verified over HTTP and in a browser: a complete day from new game through chat, event responses, and end of day
+- The playable interface — in-game clock, the schedule as a proportional rail with the current segment marked, chat panel, event prompts, day-end recap and ending screens. `useDayClock` implements the real-time design: only `free` segments consume real time, sleep is skipped past, and activity segments are untimed because a countdown on a narrative beat pushes the player to answer badly rather than think
+- Restyled to match the personal site's design system (see below), so it reads as native when embedded in that site's playground section
+- `randomized_details` is finally applied — it was in the data and typed on `GameEvent` but nothing ever used it, so events reached the player with raw `[activity]` placeholders
 
 **Next up:**
-- Frontend phase 2 — the real interface: in-game clock, schedule with the current segment highlighted, chat panel, event prompts. This is also where the live clock/schedule state described above lives, since it's deliberately not persisted server-side
+- Port the interface into the personal site's playground section, behind a proxy route so `SERVICE_ROLE` and `GOOGLE_API_KEY` never leave this project (see Deployment below)
+- Split end-of-day into two requests, so neither approaches Vercel's 300s Hobby ceiling
 - Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
-- The stale `events` bucket in `lore_chunks` (see the note above) — still unretrieved, and still missing the 10 arcs added after the original ingestion run
+- Responsive layout — built desktop-first and not yet checked on mobile
+
+---
+
+## Deployment
+
+Two Vercel projects rather than one. This repo hosts the engine and its API; the personal site's playground page calls a thin proxy route there, which forwards to this deployment. `SERVICE_ROLE` and `GOOGLE_API_KEY` stay in this project only — a rate limit or a bad deploy here can't take the main site's build down with it, and this repo stays a standalone, showable record of the RAG work.
+
+The proxy must **pipe the response body through untouched**. End of day streams NDJSON progress, and a proxy that does `await res.json()` would buffer the whole multi-minute response and destroy the progress reporting.
+
+Everything runs on free tiers, with three caveats worth knowing:
+
+- **Vercel Hobby caps function duration at 300s** — see the end-of-day risk above.
+- **Supabase pauses free projects after 7 days of inactivity.** If nobody plays for a week the game breaks until the project is manually resumed; a scheduled ping avoids it.
+- **Gemini's free tier has daily request caps.** A single day of play is roughly ten LLM calls, so a handful of players can exhaust the daily quota.
 
 ---
 
