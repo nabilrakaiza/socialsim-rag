@@ -28,7 +28,47 @@ import type { RelationshipStage } from './relationship.js';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY ?? '' });
 
-const MODEL = 'gemma-4-26b-a4b-it';
+// Model choice, measured rather than assumed. On a realistic dialogue prompt
+// (persona + retrieved lore + history), averaged over 3 runs each:
+//
+//   gemini-3.6-flash       5.2s   — fastest, but its free-tier rpm is far
+//                                   below Gemma's 30, so it's ruled out for a
+//                                   game that fires calls in bursts
+//   gemini-3.1-flash-lite  12.4s
+//   gemma-4-26b-a4b-it     14.1s
+//   gemini-3.5-flash-lite  times out entirely on this key — do not use
+//
+// Note the "-lite" naming is misleading here: 3.5-lite is unusable and 3.1-lite
+// is barely faster than Gemma. Expect roughly 12-14s per chat reply.
+//
+// Each list is a fallback chain, tried in order, so a rate limit or transient
+// failure on the first model falls through instead of failing the call. The two
+// chains lead with different models on purpose: that splits load across two
+// separate quota pools, so end-of-day batch work (which fires ~9 calls at once)
+// doesn't exhaust the same budget the player's chat depends on. Batch leads with
+// Gemma because it has the higher rpm and is what the prompts were tuned against.
+const DIALOGUE_MODELS = ['gemini-3.1-flash-lite', 'gemma-4-26b-a4b-it'] as const;
+const BATCH_MODELS = ['gemma-4-26b-a4b-it', 'gemini-3.1-flash-lite'] as const;
+
+async function generateWithFallback(models: readonly string[], prompt: string): Promise<string> {
+  const failures: string[] = [];
+
+  for (const model of models) {
+    try {
+      const response = await ai.models.generateContent({ model, contents: prompt });
+      if (response.text) {
+        return response.text;
+      }
+      failures.push(`${model}: returned no text`);
+    } catch (err) {
+      failures.push(`${model}: ${(err as Error).message}`);
+    }
+  }
+
+  // Only reached when every model in the chain failed, so the message lists
+  // all of them — debugging one exhausted chain from a single error is worse.
+  throw new Error(`all models failed — ${failures.join('; ')}`);
+}
 
 export type NPCCharacter = 'hiyori' | 'shiori' | 'yuki';
 
@@ -126,16 +166,9 @@ export async function generateDialogue(
   // Single-turn contents: history is already flattened into the prompt
   // text by buildPrompt, and systemInstruction support is unconfirmed
   // for Gemma via this SDK (see header note).
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-  });
+  const text = await generateWithFallback(DIALOGUE_MODELS, prompt);
 
-  if (!response.text) {
-    throw new Error('Gemma returned no text');
-  }
-
-  return parseDialogueResult(response.text);
+  return parseDialogueResult(text);
 }
 
 // ============================================================
@@ -222,16 +255,9 @@ export async function generateAffectionDelta(
 ): Promise<AffectionDeltaResult> {
   const prompt = buildAffectionDeltaPrompt(character, messages, currentAffection, currentStage);
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-  });
+  const text = await generateWithFallback(BATCH_MODELS, prompt);
 
-  if (!response.text) {
-    throw new Error('Gemma returned no text');
-  }
-
-  return parseAffectionDeltaResult(response.text);
+  return parseAffectionDeltaResult(text);
 }
 
 export interface KnowledgeUpdateResult {
@@ -315,16 +341,9 @@ export async function generateKnowledgeUpdate(
 ): Promise<KnowledgeUpdateResult> {
   const prompt = buildKnowledgeUpdatePrompt(character, messages, events);
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-  });
+  const text = await generateWithFallback(BATCH_MODELS, prompt);
 
-  if (!response.text) {
-    throw new Error('Gemma returned no text');
-  }
-
-  return parseKnowledgeUpdateResult(response.text);
+  return parseKnowledgeUpdateResult(text);
 }
 
 // Matches diary_system.md's prompt template placeholders exactly.
@@ -400,16 +419,9 @@ function parseDiaryResult(rawText: string): DiaryEntryResult {
 export async function generateDiaryEntry(context: DiaryEntryContext): Promise<DiaryEntryResult> {
   const prompt = buildDiaryPrompt(context);
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-  });
+  const text = await generateWithFallback(BATCH_MODELS, prompt);
 
-  if (!response.text) {
-    throw new Error('Gemma returned no text');
-  }
-
-  return parseDiaryResult(response.text);
+  return parseDiaryResult(text);
 }
 
 // ============================================================
@@ -527,14 +539,7 @@ function parseEventOutcomeResult(rawText: string): EventOutcomeResult {
 export async function generateEventOutcome(context: EventOutcomeContext): Promise<EventOutcomeResult> {
   const prompt = buildEventOutcomePrompt(context);
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-  });
+  const text = await generateWithFallback(BATCH_MODELS, prompt);
 
-  if (!response.text) {
-    throw new Error('Gemma returned no text');
-  }
-
-  return parseEventOutcomeResult(response.text);
+  return parseEventOutcomeResult(text);
 }
