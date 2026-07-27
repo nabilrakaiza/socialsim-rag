@@ -102,8 +102,8 @@ Confession is **never gated** by affection — the player can shoot their shot a
 | Embeddings | Google `gemini-embedding-001`, truncated to 768-dim (`text-embedding-004` was shut down by Google before this project reached ingestion) |
 | Vector DB | Supabase pgvector |
 | Database | Supabase (game state, messages, diary entries, events log) |
-| Frontend | Next.js + TypeScript + Tailwind + Framer Motion |
-| Backend | Next.js API Routes |
+| Frontend | Next.js (App Router) + React + TypeScript |
+| Backend | Next.js Route Handlers |
 | Deployment | Vercel |
 
 All chosen for generous free tiers — this project is designed to run at zero cost.
@@ -165,6 +165,28 @@ Adrian does **not** have a dynamic knowledge base — only Hiyori, Shiori, and Y
 
 ---
 
+## Frontend and the API boundary
+
+The browser never imports `lib/` at runtime. `lib/supabase.ts` holds `SERVICE_ROLE`, which bypasses row-level security, and `lib/gemma.ts` holds `GOOGLE_API_KEY` — so all game logic runs inside route handlers and the client only ever talks to them over `fetch`. The page imports `lib/` *types* only, which are erased at compile time and never reach the client bundle.
+
+| Route | Wraps | Notes |
+|---|---|---|
+| `POST /api/session` | `startNewGame` | Mints a `game_state` row; the returned id is the only save handle |
+| `GET /api/session/:id` | `getGameState` | Resume after a refresh |
+| `POST /api/day/start` | `startDay` | Schedule + which events fire in which segment |
+| `POST /api/chat` | `sendPlayerMessage` | ~14s per reply |
+| `POST /api/event/respond` | `recordEventResponse` | Persists free text; scoring waits for end of day |
+| `POST /api/day/end` | `endDay` | ~1m40s. **Streams NDJSON progress** — see below |
+| `POST /api/confess` | `confess` | Ends the run |
+
+There are no accounts. Whoever holds the session id holds the save, which is why it's a UUID; the client keeps it in `localStorage`.
+
+**End of day streams rather than returning once.** It takes around a minute and a half, and silence for that long is indistinguishable from a hang, so `endDay` emits a stage as each phase actually begins (`scoring`, `reflecting`, `diary`, `saving`) and the route forwards them as newline-delimited JSON. The progress shown is real, not a timed guess. Measuring it also located the cost: **diary generation is roughly 60 of those 90+ seconds**, and everything else is comparatively quick.
+
+**Model choice is split by whether anyone is waiting.** Player-facing dialogue leads with `gemini-3.1-flash-lite`; end-of-day batch work leads with Gemma, which has the higher rate limit and is what the prompts were tuned against. Each is a fallback chain, so a rate limit falls through to the other model instead of failing the call — and leading them with different models splits load across two quota pools, so batch work can't starve the player's chat.
+
+---
+
 ## Project Status
 
 **Done:**
@@ -188,9 +210,12 @@ Adrian does **not** have a dynamic knowledge base — only Hiyori, Shiori, and Y
 - Events now feed each NPC's knowledge base, attributed by `participant` so a character only learns from what she was actually present for
 - Confession (`confess()`), resolving immediately at any point in the run
 
+- Next.js app and the full API surface, plus session creation (`startNewGame` — nothing minted a `game_state` row before, so there was no way to begin a playthrough). Verified over HTTP and in a browser: a complete day from new game through chat, event responses, and end of day
+
 **Next up:**
-- Next.js frontend (chat UI, live schedule/clock view with skip, event prompts) — this is also where the live clock/schedule state described above actually lives, since it's deliberately not persisted server-side
+- Frontend phase 2 — the real interface: in-game clock, schedule with the current segment highlighted, chat panel, event prompts. This is also where the live clock/schedule state described above lives, since it's deliberately not persisted server-side
 - Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
+- The stale `events` bucket in `lore_chunks` (see the note above) — still unretrieved, and still missing the 10 arcs added after the original ingestion run
 
 ---
 
