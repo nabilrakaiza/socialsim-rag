@@ -30,15 +30,16 @@ export const SegmentStage = memo(function SegmentStage({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-line bg-surface p-6"
+        className="relative overflow-hidden rounded-[10px] border border-line bg-card p-6"
       >
-        <p className="text-sm text-muted">Nothing much happened.</p>
-        <p className="mt-2 text-lg">{resolved.flavor}</p>
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-muted opacity-40" />
+        <span className="font-mono text-xs tracking-[0.12em] text-muted">// nothing much</span>
+        <p className="mt-3 text-lg">{resolved.flavor}</p>
         <button
           onClick={onSkip}
-          className="mt-6 rounded-lg border border-line px-4 py-2 text-sm hover:bg-line"
+          className="mt-6 rounded-[10px] border border-line px-5 py-2 font-mono text-sm transition-colors hover:border-mint hover:text-mint"
         >
-          Continue
+          Continue →
         </button>
       </motion.div>
     );
@@ -48,12 +49,13 @@ export const SegmentStage = memo(function SegmentStage({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border border-line bg-surface p-6"
+      className="relative overflow-hidden rounded-[10px] border border-line bg-card p-6"
     >
-      {resolved.event && resolved.subEvent && (
-        <p className="mb-2 text-xs uppercase tracking-wide text-muted">{resolved.event.title}</p>
-      )}
-      <p className="leading-relaxed">{beat.description}</p>
+      <div className="absolute inset-x-0 top-0 h-0.5 bg-violet opacity-60" />
+      <span className="font-mono text-xs tracking-[0.12em] text-violet">
+        // {resolved.event && resolved.subEvent ? resolved.event.title.toLowerCase() : 'something happens'}
+      </span>
+      <p className="mt-3 leading-[1.7]">{beat.description}</p>
       <p className="mt-4 text-sm text-muted">{beat.player_action_prompt}</p>
 
       <textarea
@@ -61,21 +63,21 @@ export const SegmentStage = memo(function SegmentStage({
         onChange={(e) => setDraft(e.target.value)}
         rows={3}
         placeholder="Describe what you do…"
-        className="mt-3 w-full resize-none rounded-lg border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-accent"
+        className="mt-3 w-full resize-none rounded-[10px] border border-line bg-canvas px-3 py-2 text-sm outline-none transition-colors focus:border-violet"
       />
 
       <div className="mt-3 flex items-center gap-3">
         <button
           onClick={() => onAnswer(draft.trim())}
           disabled={saving || !draft.trim()}
-          className="rounded-lg bg-accent px-4 py-2 text-sm text-white disabled:opacity-40"
+          className="rounded-[10px] bg-violet px-5 py-2 font-mono text-sm text-white transition-shadow hover:glow-violet disabled:opacity-40"
         >
-          {saving ? 'Saving…' : 'Do it'}
+          {saving ? 'Saving…' : 'Do it →'}
         </button>
         <button
           onClick={onSkip}
           disabled={saving}
-          className="text-sm text-muted underline-offset-4 hover:underline disabled:opacity-40"
+          className="font-mono text-sm text-muted transition-colors hover:text-mint disabled:opacity-40"
         >
           Do nothing
         </button>

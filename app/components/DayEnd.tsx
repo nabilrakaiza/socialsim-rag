@@ -31,16 +31,17 @@ export function DayEnd({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="mx-auto max-w-lg rounded-xl border border-line bg-surface p-8 text-center"
+      className="relative mx-auto max-w-lg overflow-hidden rounded-[10px] border border-line bg-card p-8 text-center"
     >
-      <p className="text-xs uppercase tracking-widest text-muted">Day {day}</p>
-      <h2 className="mt-1 text-2xl">The day ends</h2>
+      <div className="absolute inset-x-0 top-0 h-0.5 bg-violet opacity-60" />
+      <p className="font-mono text-xs tracking-[0.12em] text-violet">// day {day}</p>
+      <h2 className="mt-2 font-mono text-2xl font-bold">The day ends</h2>
 
       {recap.length > 0 && (
         <ul className="mt-6 space-y-1 text-left text-sm">
           {recap.map((entry, i) => (
             <li key={i} className="flex items-baseline gap-2">
-              <span className={entry.answered ? 'text-accent' : 'text-muted/50'}>
+              <span className={entry.answered ? 'text-mint' : 'text-muted/50'}>
                 {entry.answered ? '●' : '○'}
               </span>
               <span className={entry.answered ? '' : 'text-muted'}>{entry.title}</span>
@@ -74,7 +75,7 @@ export function DayEnd({
           </p>
           <button
             onClick={onContinue}
-            className="mt-6 rounded-lg bg-accent px-5 py-2 text-sm text-white"
+            className="mt-6 rounded-[10px] bg-violet px-6 py-2.5 font-mono text-sm font-medium text-white transition-shadow hover:glow-violet"
           >
             {result.ending ? 'See how it ends' : `Begin day ${day + 1}`}
           </button>

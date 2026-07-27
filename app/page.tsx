@@ -251,19 +251,22 @@ export default function Page() {
 
   if (!sessionId || !state) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-        <h1 className="font-serif text-4xl">social-sim-rag</h1>
-        <p className="mt-3 leading-relaxed text-muted">
-          Thirty days. Three people who only know what they’ve seen for themselves. No score, no
-          meter — just how they talk to you.
+      <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6">
+        <span className="mb-3 block font-mono text-xs tracking-[0.12em] text-violet">// social-sim-rag</span>
+        <h1 className="font-mono text-[clamp(2rem,5vw,3rem)] font-bold leading-tight">
+          Thirty days to get it right
+        </h1>
+        <p className="mt-4 max-w-[520px] leading-[1.7] text-muted">
+          A dating sim where nobody is scripted. Three people who only know what they&rsquo;ve seen for
+          themselves, remembering it in a vector database. No score, no meter — just how they talk to you.
         </p>
-        {error && <p className="mt-4 text-sm text-red-500">{error}</p>}
+        {error && <p className="mt-4 font-mono text-sm text-red-400">{error}</p>}
         <button
           onClick={newGame}
           disabled={loading}
-          className="mt-8 self-start rounded-lg bg-accent px-5 py-2 text-sm text-white disabled:opacity-40"
+          className="mt-8 self-start rounded-[10px] bg-violet px-6 py-2.5 font-mono text-sm font-medium text-white transition-shadow hover:glow-violet disabled:opacity-40"
         >
-          {loading ? 'Starting…' : 'Begin'}
+          {loading ? 'Starting…' : 'Begin →'}
         </button>
       </main>
     );
@@ -281,13 +284,17 @@ export default function Page() {
     <main className="mx-auto max-w-3xl px-6 py-8">
       <header className="flex items-baseline justify-between">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted">Day {state.current_day} of 30</p>
-          <p className="font-mono text-3xl tabular-nums">{formatGameTime(clock.inGameHour)}</p>
+          <p className="font-mono text-xs tracking-[0.12em] text-violet">
+            // day {state.current_day} of 30
+          </p>
+          <p className="font-mono text-3xl font-bold tabular-nums text-mint">
+            {formatGameTime(clock.inGameHour)}
+          </p>
         </div>
         {plan && !clock.done && (
           <button
             onClick={confess}
-            className="text-xs text-muted underline-offset-4 hover:text-accent hover:underline"
+            className="text-xs text-muted underline-offset-4 hover:text-mint hover:underline"
           >
             confess
           </button>
@@ -300,7 +307,7 @@ export default function Page() {
         </div>
       )}
 
-      {error && <p className="mt-4 text-sm text-red-500">{error}</p>}
+      {error && <p className="mt-4 font-mono text-sm text-red-400">{error}</p>}
 
       {/* Deliberately NOT wrapped in AnimatePresence. The clock re-renders this
           subtree four times a second, and an AnimatePresence with mode="wait"
@@ -315,9 +322,9 @@ export default function Page() {
               <button
                 onClick={beginDay}
                 disabled={loading}
-                className="rounded-lg bg-accent px-5 py-2 text-sm text-white disabled:opacity-40"
+                className="rounded-[10px] bg-violet px-6 py-2.5 font-mono text-sm font-medium text-white transition-shadow hover:glow-violet disabled:opacity-40"
               >
-                {loading ? 'Waking up…' : `Begin day ${state.current_day}`}
+                {loading ? 'Waking up…' : `Begin day ${state.current_day} →`}
               </button>
             </div>
           )}
@@ -339,15 +346,16 @@ export default function Page() {
 
           {plan && !clock.done && clock.segment?.type === 'free' && (
             <div key={`free-${clock.index}`}>
-              <div className="mb-3 flex items-center justify-between text-sm">
+              <div className="mb-3 flex items-center justify-between font-mono text-sm">
                 <span className="text-muted">
-                  Free time — {clock.remainingRealMs !== null && formatDuration(clock.remainingRealMs)} left
+                  free time — <span className="text-mint">{clock.remainingRealMs !== null && formatDuration(clock.remainingRealMs)}</span> left
                 </span>
-                <button onClick={advance} className="text-muted underline-offset-4 hover:text-accent hover:underline">
-                  skip ahead
+                <button onClick={advance} className="text-muted transition-colors hover:text-mint">
+                  skip ahead →
                 </button>
               </div>
-              <div className="h-[26rem] rounded-xl border border-line bg-canvas p-4">
+              <div className="relative h-[26rem] overflow-hidden rounded-[10px] border border-line bg-card p-4">
+                <div className="absolute inset-x-0 top-0 h-0.5 bg-violet opacity-60" />
                 <ChatPanel
                   lines={lines}
                   character={character}
@@ -361,9 +369,9 @@ export default function Page() {
               {clock.expired && (
                 <button
                   onClick={advance}
-                  className="mt-3 rounded-lg bg-accent px-4 py-2 text-sm text-white"
+                  className="mt-3 rounded-[10px] bg-violet px-5 py-2 font-mono text-sm text-white"
                 >
-                  Move on
+                  Move on →
                 </button>
               )}
             </div>

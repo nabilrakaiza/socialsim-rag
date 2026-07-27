@@ -40,7 +40,7 @@ export function ScheduleRail({
               style={{ width: `${(segment.durationHours / 24) * 100}%` }}
               className={
                 segment.type === 'free'
-                  ? 'border-r border-canvas/40 bg-accent/30'
+                  ? 'border-r border-canvas/40 bg-violet/30'
                   : segment.type === 'activity'
                     ? 'border-r border-canvas/40 bg-muted/25'
                     : 'border-r border-canvas/40 bg-transparent'
@@ -53,7 +53,7 @@ export function ScheduleRail({
         {/* Current position, not a fill bar — the day moves in jumps as well as
             in real time, so a marker reads more honestly than a progress fill. */}
         <motion.div
-          className="absolute top-0 h-full w-0.5 bg-accent"
+          className="absolute top-0 h-full w-0.5 bg-violet"
           animate={{ left: `${dayProgress * 100}%` }}
           transition={{ type: 'tween', duration: 0.3, ease: 'easeOut' }}
         />
@@ -68,7 +68,7 @@ export function ScheduleRail({
               key={segment.name}
               className={
                 isCurrent
-                  ? 'font-medium text-accent'
+                  ? 'font-medium text-violet'
                   : isPast
                     ? 'text-muted/45 line-through decoration-muted/30'
                     : segment.type === 'locked'

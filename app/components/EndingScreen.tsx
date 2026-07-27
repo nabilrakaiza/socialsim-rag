@@ -27,14 +27,17 @@ export function EndingScreen({ endingId, onRestart }: { endingId: string; onRest
       transition={{ duration: 0.6 }}
       className="mx-auto max-w-xl py-12"
     >
-      {/* The prose is the payoff, so it gets serif and room to breathe rather
-          than the UI treatment the rest of the game uses. */}
-      <h2 className="font-serif text-3xl">{ending?.title ?? 'The end'}</h2>
+      <span className="mb-3 block font-mono text-xs tracking-[0.12em] text-violet">// ending</span>
+
+      {/* Mono for the heading, matching the site. The prose below stays in Inter
+          deliberately — these are long narrative paragraphs, and monospace at
+          that length is genuinely harder to read. */}
+      <h2 className="font-mono text-3xl font-bold">{ending?.title ?? 'The end'}</h2>
 
       {ending ? (
-        <div className="mt-6 space-y-5 font-serif text-lg leading-relaxed">
+        <div className="mt-6 space-y-5 text-[1.05rem] leading-[1.8]">
           <p>{ending.description}</p>
-          <p className="text-muted italic">{ending.scene}</p>
+          <p className="italic text-muted">{ending.scene}</p>
         </div>
       ) : (
         <p className="mt-6 text-muted">
@@ -44,7 +47,7 @@ export function EndingScreen({ endingId, onRestart }: { endingId: string; onRest
 
       <button
         onClick={onRestart}
-        className="mt-10 rounded-lg border border-line px-5 py-2 text-sm hover:bg-line"
+        className="mt-10 rounded-[10px] border border-line px-5 py-2 font-mono text-sm transition-colors hover:border-mint hover:text-mint"
       >
         Start again
       </button>

@@ -1,46 +1,128 @@
+/* Mirrors personal-website/app/globals.css so this drops into the playground
+   section looking native. The raw variable names are deliberately identical
+   (--bg-primary, --accent-mint, …) so ported components need no rewriting,
+   with Tailwind tokens layered on top for ergonomics.
+
+   Dark-only, like the site — no prefers-color-scheme branch. */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @import "tailwindcss";
 
-/* Tailwind v4 is CSS-first: design tokens live here rather than in a JS config.
-   Deliberately restrained — a warm off-white/ink pair, one accent, and a
-   single "paper" tone for the diary. The game is mostly text, so contrast and
-   line length matter more than colour. */
-@theme {
-  --color-canvas: #fbfaf9;
-  --color-surface: #ffffff;
-  --color-ink: #1c1917;
-  --color-muted: #78716c;
-  --color-line: #e7e5e4;
-  --color-accent: #7c3aed;
-  --color-paper: #fdf9ef;
-
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-surface: #1a1a2e;
+  --bg-card: #12121f;
+  --accent-mint: #00ff9d;
+  --accent-violet: #7b61ff;
+  --text-primary: #e2e8f0;
+  --text-muted: #64748b;
+  --border: #1e2035;
 }
 
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-canvas: #12100f;
-    --color-surface: #1c1917;
-    --color-ink: #f5f5f4;
-    --color-muted: #a8a29e;
-    --color-line: #2c2724;
-    --color-accent: #a78bfa;
-    --color-paper: #1f1b16;
-  }
+/* `inline` so these resolve against the vars above rather than snapshotting
+   their values — one source of truth, same as the site. */
+@theme inline {
+  --color-canvas: var(--bg-primary);
+  --color-surface: var(--bg-surface);
+  --color-card: var(--bg-card);
+  --color-mint: var(--accent-mint);
+  --color-violet: var(--accent-violet);
+  --color-ink: var(--text-primary);
+  --color-muted: var(--text-muted);
+  --color-line: var(--border);
+
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-html,
+/* The site's globals.css opens with `* { margin: 0; padding: 0 }`. That reset
+   is deliberately NOT copied here, and the reason is subtle: Tailwind v4 puts
+   its utilities in a cascade layer, and unlayered rules beat layered ones
+   regardless of specificity. A bare `*` reset therefore overrides every
+   padding and margin utility — px-6, mx-auto and the rest silently stop
+   working. The site never hits this because its pages use inline styles.
+
+   Tailwind's preflight already applies the same box-sizing and margin reset,
+   from inside a layer, so nothing is lost visually. */
+
 body {
-  background: var(--color-canvas);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
 }
 
-/* The one thing worth animating without a library: the "thinking" pulse while
-   an NPC composes a reply, which is on screen for ~14s. */
+/* Scanline overlay */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  z-index: 9999;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--accent-violet);
+  border-radius: 3px;
+}
+
+::selection {
+  background: var(--accent-mint);
+  color: var(--bg-primary);
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.accent-mint { color: var(--accent-mint); }
+.accent-violet { color: var(--accent-violet); }
+
+.glow-mint {
+  box-shadow: 0 0 20px rgba(0, 255, 157, 0.3);
+}
+.glow-violet {
+  box-shadow: 0 0 20px rgba(123, 97, 255, 0.3);
+}
+.text-glow-mint {
+  text-shadow: 0 0 20px rgba(0, 255, 157, 0.5);
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(123, 97, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(123, 97, 255, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* The one game-specific addition: a pulse for the "thinking" states, which are
+   on screen for ~14s during a reply and minutes at end of day. */
 @keyframes breathe {
   0%, 100% { opacity: 0.35; }
   50% { opacity: 1; }
 }
 .animate-breathe { animation: breathe 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

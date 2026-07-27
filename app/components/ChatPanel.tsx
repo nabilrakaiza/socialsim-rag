@@ -62,8 +62,8 @@ export const ChatPanel = memo(function ChatPanel({
           <button
             key={c}
             onClick={() => onCharacterChange(c)}
-            className={`rounded-full px-3 py-1 text-sm transition-colors ${
-              c === character ? 'bg-accent text-white' : 'text-muted hover:bg-line'
+            className={`rounded-full px-3 py-1 font-mono text-sm transition-colors ${
+              c === character ? 'bg-violet text-white' : 'text-muted hover:text-mint'
             }`}
           >
             {NAMES[c]}
@@ -88,9 +88,9 @@ export const ChatPanel = memo(function ChatPanel({
               className={line.role === 'player' ? 'flex justify-end' : 'flex justify-start'}
             >
               <div
-                className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm leading-relaxed ${
+                className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm leading-[1.7] ${
                   line.role === 'player'
-                    ? 'rounded-br-sm bg-accent text-white'
+                    ? 'rounded-br-sm bg-violet text-white'
                     : 'rounded-bl-sm bg-surface text-ink ring-1 ring-line'
                 }`}
               >
@@ -122,12 +122,12 @@ export const ChatPanel = memo(function ChatPanel({
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submit()}
               placeholder={`Message ${NAMES[character]}…`}
-              className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+              className="flex-1 rounded-[10px] border border-line bg-canvas px-3 py-2 text-sm outline-none transition-colors focus:border-violet"
             />
             <button
               onClick={submit}
               disabled={pending || !draft.trim()}
-              className="rounded-lg bg-accent px-4 py-2 text-sm text-white disabled:opacity-40"
+              className="rounded-[10px] bg-violet px-5 py-2 font-mono text-sm text-white transition-shadow hover:glow-violet disabled:opacity-40"
             >
               Send
             </button>
