@@ -63,6 +63,25 @@ export async function insertLoreChunks(
   }
 }
 
+// Scoped to is_static = true, and that scoping is the whole point: dynamic
+// chunks (is_static = false, session_id set) are a playthrough's generated
+// memory — knowledge updates and diary entries — and deleting those would
+// erase what the characters remember. Only the ingested base lore is
+// disposable, because it can be rebuilt from lore/ at any time.
+export async function deleteStaticLoreChunks(): Promise<number> {
+  const { data, error } = await supabase
+    .from('lore_chunks')
+    .delete()
+    .eq('is_static', true)
+    .select('id');
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data?.length ?? 0;
+}
+
 export async function matchLoreChunks(
   queryEmbedding: number[],
   character: LoreChunk['character'],

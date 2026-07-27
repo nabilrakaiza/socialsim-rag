@@ -3,8 +3,17 @@ import type { EndDayStage } from '@/lib/orchestrator';
 import { readJson, requireString } from '../../_shared';
 
 // The slow one: grades every event the player answered, then runs the whole
-// batch evaluation. Measured at ~1m40s. maxDuration is raised because Vercel's
-// default function timeout would cut it off well before it finishes.
+// batch evaluation. Measured between 1m40s and 4m24s across runs, with no
+// retries or model failures in between — that spread is raw LLM latency.
+//
+// 300s is not a comfortable margin, it is the ceiling: Vercel's Hobby plan
+// allows 300s as both the default AND the maximum (Pro goes to 800s). The
+// slowest observed run used 264s of that — 88% — so a slower one returns a
+// 504 and strands the player mid-day-end.
+//
+// The durable fix is splitting this into two requests (score events, then
+// batch-eval) so neither approaches the cap. Until then this is a known risk,
+// and the UI warns the player the wait can run to several minutes.
 export const maxDuration = 300;
 
 // Streamed as newline-delimited JSON rather than returned in one shot. A single

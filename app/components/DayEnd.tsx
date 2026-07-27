@@ -50,9 +50,19 @@ export function DayEnd({
       )}
 
       {!result && (
-        <p className="mt-8 text-sm text-muted">
-          <span className="animate-breathe">{progress ?? 'settling the day…'}</span>
-        </p>
+        <div className="mt-8">
+          <p className="text-sm text-muted">
+            <span className="animate-breathe">{progress ?? 'settling the day…'}</span>
+          </p>
+          {/* Stated plainly rather than left to a spinner. Measured runs have
+              ranged from under two minutes to nearly four and a half, so an
+              honest upper bound beats an optimistic one — a player who expects
+              90 seconds and waits four assumes it has broken. */}
+          <p className="mt-3 text-xs text-muted/70">
+            Everyone&rsquo;s catching up on their day. This can take up to about five
+            minutes — you can leave this open.
+          </p>
+        </div>
       )}
 
       {result && (
