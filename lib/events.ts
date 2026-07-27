@@ -59,6 +59,13 @@ export interface GameEvent {
   // score against Hiyori: she has no meter and isn't a route, but she's
   // protective of Hiyori, so how Adrian treats her reaches Hiyori indirectly.
   affects?: 'hiyori' | 'yuki';
+  // Who actually witnessed this, for the end-of-day knowledge update. Distinct
+  // from `affects`, which is about whose meter moves: Shiori's events move
+  // Hiyori's meter (she's protective and reports back) but SHIORI is the one
+  // who saw what Adrian did. Attributing them to Hiyori would break the
+  // siloed-knowledge rule. Absent means it matches `affects`, which is correct
+  // for every Hiyori and Yuki event.
+  participant?: 'hiyori' | 'shiori' | 'yuki';
   duration_days: number;
   randomized_details?: Record<string, string[]>;
   player_action_prompt: string;
@@ -183,6 +190,12 @@ export function skipPenalty(beat: GameEvent | SubEvent): number {
 // `affects` can't be misread as "this event moves no meter at all".
 export function affectedMeter(event: GameEvent): 'hiyori' | 'yuki' {
   return event.affects ?? 'hiyori';
+}
+
+// Whose knowledge base this event should update. Falls back to the meter,
+// which is right everywhere except Shiori's events — see `participant`.
+export function eventParticipant(event: GameEvent): 'hiyori' | 'shiori' | 'yuki' {
+  return event.participant ?? affectedMeter(event);
 }
 
 export interface SegmentResolutionInput {

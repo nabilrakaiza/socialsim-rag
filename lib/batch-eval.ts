@@ -41,7 +41,7 @@ import {
   generateKnowledgeUpdate,
   generateDiaryEntry,
 } from './gemma.js';
-import type { NPCCharacter, DialogueTurn, DiaryEntryContext } from './gemma.js';
+import type { NPCCharacter, DialogueTurn, DiaryEntryContext, KnowledgeEventContext } from './gemma.js';
 import {
   affectionToStage,
   affectionToTier,
@@ -65,6 +65,11 @@ export interface BatchEvalInput {
   // outside this function would be invisible to it.
   eventAffectionDelta?: number;
   eventYukiAffectionDelta?: number;
+  // Today's events grouped by who was present, so each character's knowledge
+  // update covers what she witnessed as well as what was said. Keyed by
+  // participant rather than by whose meter moved — see lib/events.ts's
+  // eventParticipant.
+  eventContexts?: Partial<Record<NPCCharacter, KnowledgeEventContext[]>>;
 }
 
 export interface BatchEvalResult {
@@ -95,16 +100,19 @@ interface KnowledgeChunkResult {
 }
 
 // Skips the call entirely (returns null) when there's nothing to summarize —
-// don't spend an API call on "nothing happened today."
+// don't spend an API call on "nothing happened today." An event with no
+// conversation still counts as something worth recording, which is why both
+// inputs are checked.
 async function buildKnowledgeChunk(
   character: NPCCharacter,
   turns: DialogueTurn[],
+  events: KnowledgeEventContext[],
   sessionId: string,
   day: number
 ): Promise<KnowledgeChunkResult | null> {
-  if (turns.length === 0) return null;
+  if (turns.length === 0 && events.length === 0) return null;
 
-  const update = await withRetry(() => generateKnowledgeUpdate(character, turns));
+  const update = await withRetry(() => generateKnowledgeUpdate(character, turns, events));
   const embedding = await withRetry(() => embedText(update.content));
 
   return {
@@ -152,9 +160,9 @@ export async function runEndOfDayBatchEval(input: BatchEvalInput): Promise<Batch
   const hiyoriMessages: DialogueTurn[] = messages.filter(m => m.character == "hiyori").map(m => ({role: "npc", content: m.content}));
 
   const [yukiChunk, shioriChunk, hiyoriChunk, yukiChatDelta, hiyoriChatDelta] = await Promise.all([
-    buildKnowledgeChunk('yuki', yukiMessages, input.sessionId, gameState.current_day),
-    buildKnowledgeChunk('shiori', shioriMessages, input.sessionId, gameState.current_day),
-    buildKnowledgeChunk('hiyori', hiyoriMessages, input.sessionId, gameState.current_day),
+    buildKnowledgeChunk('yuki', yukiMessages, input.eventContexts?.yuki ?? [], input.sessionId, gameState.current_day),
+    buildKnowledgeChunk('shiori', shioriMessages, input.eventContexts?.shiori ?? [], input.sessionId, gameState.current_day),
+    buildKnowledgeChunk('hiyori', hiyoriMessages, input.eventContexts?.hiyori ?? [], input.sessionId, gameState.current_day),
     buildChatAffectionDelta('yuki', yukiMessages, gameState.yuki_affection),
     buildChatAffectionDelta('hiyori', hiyoriMessages, gameState.affection),
   ]);

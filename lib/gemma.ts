@@ -244,12 +244,29 @@ export interface KnowledgeUpdateResult {
 // way an existing lore chunk reads, not as dialogue. Only ever given
 // this character's own conversation (caller's job to scope it that
 // way) — per README's siloed-knowledge design, no cross-NPC gossip.
-function buildKnowledgeUpdatePrompt(character: NPCCharacter, messages: DialogueTurn[]): string {
+// What happened outside conversation today — an event that fired and what
+// Adrian chose to do about it. Without these the knowledge base only ever
+// reflects chat, so a character would have no memory of events she was
+// personally present for.
+export interface KnowledgeEventContext {
+  description: string;
+  playerAction: string;
+}
+
+function buildKnowledgeUpdatePrompt(
+  character: NPCCharacter,
+  messages: DialogueTurn[],
+  events: KnowledgeEventContext[]
+): string {
   const name = character[0].toUpperCase() + character.slice(1);
 
   const messagesText = messages.length > 0
     ? messages.map((turn) => `${turn.role === 'player' ? 'Adrian' : name}: ${turn.content}`).join('\n')
-    : '(No interaction with Adrian today.)';
+    : '(No conversation with Adrian today.)';
+
+  const eventsText = events.length > 0
+    ? events.map((event, i) => `${i + 1}. ${event.description}\n   What Adrian did: ${event.playerAction}`).join('\n')
+    : '(Nothing happened beyond conversation.)';
 
   return `You are updating ${name}'s private knowledge base in a narrative dating simulation — a factual record of what SHE personally knows or perceives about Adrian, not dialogue and never shown to the player directly.
 
@@ -259,7 +276,10 @@ ${PERSONAS[character]}
 TODAY'S CONVERSATION WITH ADRIAN:
 ${messagesText}
 
-Write 2-4 sentences, third person. This must be about ADRIAN — his actions today and what they reveal — filtered through ${name}'s perspective, NOT a description of ${name} herself or her own state. Get the subject right: sentences should read like "Adrian did/said X — ${name} took that to mean Y," never "${name} felt/looked/was X." Capture only what ${name} learned or came to feel about Adrian from TODAY's interaction — not a restatement of things she already knew before today. Stay consistent with her personality: a guarded character notices more than she'd ever say, a direct character forms clearer opinions outright, etc. If nothing meaningful happened today, write one short sentence acknowledging that instead of inventing detail.
+WHAT ELSE HAPPENED TODAY THAT ${name.toUpperCase()} WAS PART OF:
+${eventsText}
+
+Write 2-4 sentences, third person. Draw on both the conversation and the events above — an event she was present for tells her as much about him as anything he said. This must be about ADRIAN — his actions today and what they reveal — filtered through ${name}'s perspective, NOT a description of ${name} herself or her own state. Get the subject right: sentences should read like "Adrian did/said X — ${name} took that to mean Y," never "${name} felt/looked/was X." Capture only what ${name} learned or came to feel about Adrian from TODAY's interaction — not a restatement of things she already knew before today. Stay consistent with her personality: a guarded character notices more than she'd ever say, a direct character forms clearer opinions outright, etc. If nothing meaningful happened today, write one short sentence acknowledging that instead of inventing detail.
 
 Example of the right subject/perspective: "Adrian noticed she seemed stressed and asked about it without making a big deal of it — ${name} found that oddly considerate, though she'd never admit it out loud." (Adrian's action is the subject; ${name}'s reaction is the interpretation layered on top, not the main subject.)
 
@@ -290,9 +310,10 @@ function parseKnowledgeUpdateResult(rawText: string): KnowledgeUpdateResult {
 
 export async function generateKnowledgeUpdate(
   character: NPCCharacter,
-  messages: DialogueTurn[]
+  messages: DialogueTurn[],
+  events: KnowledgeEventContext[] = []
 ): Promise<KnowledgeUpdateResult> {
-  const prompt = buildKnowledgeUpdatePrompt(character, messages);
+  const prompt = buildKnowledgeUpdatePrompt(character, messages, events);
 
   const response = await ai.models.generateContent({
     model: MODEL,

@@ -54,11 +54,14 @@ Each segment's duration is drawn from its own normal distribution, then the full
 2. During `free` segments (`get_ready`, `lunch`, `dinner`), in-game time runs in real time at a fixed compression rate — **1 in-game hour ≈ 15 real minutes** — while the player can chat with Hiyori, Shiori, or Yuki. A skip action ends the segment immediately and jumps to the next one.
 3. `locked` segments (asleep) and unresolved `activity` segments are not interactive — no live waiting; the clock just advances by that segment's full duration and moves to the next segment. **Random events fire unpredictably** during `activity` segments (busy blocks), never during `locked` ones.
 4. This live clock/schedule state is deliberately **not persisted server-side** — it only exists as client-side session state once the frontend exists. Exiting mid-day loses that day's progress; only the end-of-day checkpoint below is saved.
-5. At end of day, a batch evaluation runs:
+5. Confessing is available at any point and ends the run immediately — the affection score only decides which of the three confession endings you get.
+6. At end of day, a batch evaluation runs:
    - Updates the hidden affection score and relationship tier
    - Updates each NPC's individual knowledge base (what they know/feel about Adrian, based only on what they personally experienced that day)
    - Generates a new Hiyori diary entry if a trigger condition is met
    - Re-embeds all new dynamic content into the vector store
+
+`lib/orchestrator.ts` is the only module that knows how a day runs, and exposes the four calls a frontend needs: `startDay()` returns the day's plan (schedule plus which events fire in which segment), `recordEventResponse()` persists the player's free-text answer to one event, `confess()` ends the run, and `endDay()` scores the day's events, runs the batch evaluation, and advances the clock. Everything else stays deliberately unaware of the rest: `lib/events.ts` is pure logic that touches no database, `lib/chat.ts` handles a single message, `lib/batch-eval.ts` a single end-of-day.
 
 ### Event System
 All events live in `lore/events.json` (30 events, 54 sub-events) and are resolved by `lib/events.ts`.
@@ -75,6 +78,8 @@ All events live in `lore/events.json` (30 events, 54 sub-events) and are resolve
 Sub-events flagged `ambient` span the whole arc and are written to survive repeating; they exist so an active arc actually fills its days instead of leaving most segments to unrelated events. The unflagged ones are the narrative one-offs.
 
 **Which meter an event moves** is the optional `affects` field — absent means Hiyori, and only the four Yuki-route events set it. Shiori-focused events deliberately score against Hiyori's meter: she has no meter of her own and isn't a route, but she's protective of Hiyori, so how Adrian treats her reaches Hiyori indirectly.
+
+**Who witnessed an event** is a separate question, and a separate optional field: `participant`. It decides whose knowledge base the event updates at end of day, and defaults to whatever `affects` says — correct for every Hiyori and Yuki event. Shiori's events are the exception and set it explicitly: they move Hiyori's meter, but *Shiori* is the one who saw what Adrian did. Attributing them to Hiyori would have her "remember" a conversation she wasn't part of, breaking the siloed-knowledge rule below.
 
 ### Endings
 | Ending | Trigger |
@@ -178,9 +183,12 @@ Adrian does **not** have a dynamic knowledge base — only Hiyori, Shiori, and Y
 - Random event system (`lib/events.ts`), per the Event System section above — normal-day segment resolution, extended-event triggering, and in-arc sub-event resolution. Verified by simulation (`scripts/tmp-test-events.ts`, `scripts/tmp-test-arc.ts`): across 500 simulated runs of all 13 arcs, every sub-event lands and no final-day beat ever fires off the final day
 - Event content expanded to 13 extended arcs (up from 3) spanning the affection range, plus per-arc ambient sub-events so an active arc actually fills its days
 
+- Ending resolution (`lib/endings.ts`) and free-text event scoring (`generateEventOutcome`), with skipping an event scored deterministically instead — an unanswered event never reaches the LLM, which grades silence as a poor response and would conflate not engaging with fumbling
+- Game loop orchestrator (`lib/orchestrator.ts`) — the full daily flow, with all extended-event state reconstructed from `events_log` rather than stored. Verified end-to-end against the live DB and API, including that an arc's start row isn't mistaken for an unanswered beat, and that `affects` routes deltas to the right meter (`scripts/tmp-test-orchestrator*.ts`, `scripts/tmp-test-yuki-routing.ts`)
+- Events now feed each NPC's knowledge base, attributed by `participant` so a character only learns from what she was actually present for
+- Confession (`confess()`), resolving immediately at any point in the run
+
 **Next up:**
-- Game loop / orchestrator wiring `sendPlayerMessage` + `runEndOfDayBatchEval` + the event system into an actual playable daily flow. This is also where the remaining event-system wiring lands: persisting fired events to `events_log`, reconstructing active-arc state from it, and feeding event outcomes into affection scoring (`lib/events.ts` is pure logic — it reads no DB and writes none)
-- Feed event outcomes into each NPC's knowledge base — `runEndOfDayBatchEval` currently derives knowledge updates from `messages` only, so an event that fires today leaves no trace in what the characters remember
 - Next.js frontend (chat UI, live schedule/clock view with skip, event prompts) — this is also where the live clock/schedule state described above actually lives, since it's deliberately not persisted server-side
 - Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
 

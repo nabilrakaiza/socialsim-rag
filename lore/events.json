@@ -627,7 +627,8 @@
       "eligible_segments": [
         "morning_activity",
         "activity_after_lunch"
-      ]
+      ],
+      "participant": "shiori"
     },
     {
       "id": "hall_sports_tournament",
@@ -1120,7 +1121,8 @@
           ],
           "ambient": true
         }
-      ]
+      ],
+      "participant": "shiori"
     },
     {
       "id": "hiyori_tutoring_gig",

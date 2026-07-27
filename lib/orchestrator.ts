@@ -9,6 +9,7 @@
 // Three entry points, matching what a frontend needs:
 //   startDay()            -> the day's plan (schedule + what fires when)
 //   recordEventResponse() -> the player's free text for one event
+//   confess()             -> ends the run immediately with an ending
 //   endDay()              -> score, evaluate, advance, check for an ending
 //
 // Schedule and clock state are NOT persisted (see README's Daily Flow):
@@ -39,6 +40,7 @@ import {
   resolveActivitySegment,
   resolveActivitySegmentDuringArc,
   affectedMeter,
+  eventParticipant,
   skipPenalty,
 } from './events.js';
 import type {
@@ -51,6 +53,7 @@ import type {
 import { generateDailySchedule } from './schedule.js';
 import type { ScheduleSegment } from './schedule.js';
 import { generateEventOutcome } from './gemma.js';
+import type { KnowledgeEventContext, NPCCharacter } from './gemma.js';
 import { runEndOfDayBatchEval, withRetry } from './batch-eval.js';
 import { checkEnding } from './endings.js';
 import type { EndingId } from './endings.js';
@@ -284,6 +287,40 @@ export async function startDay(sessionId: string): Promise<DayPlan> {
   return { day: gameState.current_day, schedule, segments, startedArc, activeArc };
 }
 
+// Confessing ends the run there and then, rather than waiting for endDay.
+// checkEnding treats a confession as resolving immediately — the player can
+// shoot their shot at any point and the score only decides how it lands — so
+// deferring it to the end of the day would leave the game in a state where
+// the outcome is decided but not yet shown.
+//
+// Returns the ending so the caller can render it straight away. Note this
+// never returns null: with confessed true, checkEnding always resolves to one
+// of the three confession endings.
+export async function confess(sessionId: string): Promise<EndingId> {
+  const gameState = await getGameState(sessionId);
+
+  const ending = checkEnding({
+    currentDay: gameState.current_day,
+    affection: gameState.affection,
+    yukiAffection: gameState.yuki_affection,
+    confessed: true,
+  });
+
+  if (!ending) {
+    // Unreachable unless checkEnding's confession branch changes — better a
+    // loud failure than silently leaving the game running after a confession.
+    throw new Error('confession did not resolve to an ending');
+  }
+
+  await updateGameState(sessionId, {
+    confessed: true,
+    game_over: true,
+    ending_id: ending,
+  });
+
+  return ending;
+}
+
 // Persists only. Scoring deliberately waits for endDay so the live segment
 // clock never blocks on a Gemma round trip.
 export async function recordEventResponse(eventLogId: string, playerAction: string): Promise<void> {
@@ -357,7 +394,7 @@ export async function endDay(sessionId: string): Promise<EndDayResult> {
         : skipPenalty(ref.beat);
 
       await updateEventLogOutcome(row.id, delta);
-      return { ref, delta, meter, answered: Boolean(playerAction) };
+      return { ref, delta, meter, answered: Boolean(playerAction), playerAction: playerAction ?? '' };
     })
   );
 
@@ -367,6 +404,9 @@ export async function endDay(sessionId: string): Promise<EndDayResult> {
   let canonEventToday = false;
   const summaries: string[] = [];
   const actions: string[] = [];
+  // Grouped by who was present, not by whose meter moved — Shiori's events
+  // move Hiyori's meter but Shiori is the one who witnessed them.
+  const eventContexts: Partial<Record<NPCCharacter, KnowledgeEventContext[]>> = {};
 
   for (const entry of scored) {
     if (entry.meter === 'yuki') {
@@ -382,13 +422,24 @@ export async function endDay(sessionId: string): Promise<EndDayResult> {
       canonEventToday = true;
     }
     if (entry.answered) {
-      summaries.push(entry.ref.beat.description);
-    }
-  }
+      // Only answered beats feed the knowledge base. An ignored event is
+      // something Adrian didn't engage with, so there's nothing for her to
+      // have learned about him from it.
+      const participant = eventParticipant(entry.ref.parent);
+      (eventContexts[participant] ??= []).push({
+        description: entry.ref.beat.description,
+        playerAction: entry.playerAction,
+      });
 
-  for (const { row } of scorable) {
-    const action = row.player_action?.trim();
-    if (action) actions.push(action);
+      // The diary is HIYORI's, so it only gets events she was actually part
+      // of. Feeding it everything let Gemma fuse unrelated beats — a Shiori
+      // conversation plus an umbrella shared with Hiyori came back as Adrian
+      // sharing his umbrella with Shiori.
+      if (participant === 'hiyori') {
+        summaries.push(entry.ref.beat.description);
+        actions.push(entry.playerAction);
+      }
+    }
   }
 
   // Event deltas go INTO the batch eval rather than being applied here, so
@@ -402,6 +453,7 @@ export async function endDay(sessionId: string): Promise<EndDayResult> {
     canonEventToday,
     eventSummary: summaries.length > 0 ? summaries.join(' ') : undefined,
     adrianAction: actions.length > 0 ? actions.join(' ') : undefined,
+    eventContexts,
   });
 
   // Checked against the post-batch numbers — an event or conversation today
