@@ -70,7 +70,13 @@ export interface BatchEvalInput {
   // participant rather than by whose meter moved — see lib/events.ts's
   // eventParticipant.
   eventContexts?: Partial<Record<NPCCharacter, KnowledgeEventContext[]>>;
+  // Called as each phase begins, so a caller can report progress. End-of-day
+  // takes well over a minute of sequential LLM work, and a bare spinner for
+  // that long is indistinguishable from a hang.
+  onProgress?: (stage: BatchEvalStage) => void;
 }
+
+export type BatchEvalStage = 'reflecting' | 'diary' | 'saving';
 
 export interface BatchEvalResult {
   newAffection: number;
@@ -159,6 +165,8 @@ export async function runEndOfDayBatchEval(input: BatchEvalInput): Promise<Batch
   const shioriMessages: DialogueTurn[] = messages.filter(m => m.character == "shiori").map(m => ({role: "npc", content: m.content}));
   const hiyoriMessages: DialogueTurn[] = messages.filter(m => m.character == "hiyori").map(m => ({role: "npc", content: m.content}));
 
+  input.onProgress?.('reflecting');
+
   const [yukiChunk, shioriChunk, hiyoriChunk, yukiChatDelta, hiyoriChatDelta] = await Promise.all([
     buildKnowledgeChunk('yuki', yukiMessages, input.eventContexts?.yuki ?? [], input.sessionId, gameState.current_day),
     buildKnowledgeChunk('shiori', shioriMessages, input.eventContexts?.shiori ?? [], input.sessionId, gameState.current_day),
@@ -202,6 +210,8 @@ export async function runEndOfDayBatchEval(input: BatchEvalInput): Promise<Batch
   });
 
   if (shouldGenerate) {
+    input.onProgress?.('diary');
+
     const lastEntries = await getLastDiaryEntries(input.sessionId, 2);
 
     const diaryContext: DiaryEntryContext = {
@@ -237,6 +247,8 @@ export async function runEndOfDayBatchEval(input: BatchEvalInput): Promise<Batch
 
     await insertLoreChunks([entryLoreChunk], [entryEmbedding]);
   }
+
+  input.onProgress?.('saving');
 
   await updateGameState(input.sessionId, {
     affection: updatedHiyoriAffection,

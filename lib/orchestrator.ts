@@ -57,6 +57,7 @@ import type { ScheduleSegment } from './schedule';
 import { generateEventOutcome } from './gemma';
 import type { KnowledgeEventContext, NPCCharacter } from './gemma';
 import { runEndOfDayBatchEval, withRetry } from './batch-eval';
+import type { BatchEvalStage } from './batch-eval';
 import { checkEnding } from './endings';
 import type { EndingId } from './endings';
 import { affectionToStage, type RelationshipStage } from './relationship';
@@ -236,6 +237,8 @@ export async function startDay(sessionId: string): Promise<DayPlan> {
 
   const schedule = generateDailySchedule();
   const segments: ResolvedSegment[] = [];
+  // Accumulated across segments so a regular event can't fire twice in one day.
+  const firedTodayIds: string[] = [];
 
   for (const segment of ACTIVITY_SEGMENTS) {
     const gates = {
@@ -243,6 +246,7 @@ export async function startDay(sessionId: string): Promise<DayPlan> {
       currentStage,
       affection: gameState.affection,
       yukiAffection: gameState.yuki_affection,
+      firedTodayIds,
     };
 
     // Branched rather than a ternary on purpose: assigning either function's
@@ -271,6 +275,11 @@ export async function startDay(sessionId: string): Promise<DayPlan> {
         continue;
       }
       event = plainResult.event;
+    }
+
+    // Only top-level events are tracked — sub-events are meant to repeat.
+    if (!subEvent) {
+      firedTodayIds.push(event.id);
     }
 
     const row = await insertEventLog({
@@ -361,7 +370,15 @@ function findBeat(eventId: string, events: GameEvent[]): BeatRef | null {
   return null;
 }
 
-export async function endDay(sessionId: string): Promise<EndDayResult> {
+// 'scoring' covers grading the day's event responses; the rest come from the
+// batch eval itself. Semantic ids rather than display copy — the wording is
+// the UI's business, not this module's.
+export type EndDayStage = 'scoring' | BatchEvalStage;
+
+export async function endDay(
+  sessionId: string,
+  onProgress?: (stage: EndDayStage) => void
+): Promise<EndDayResult> {
   const gameState = await getGameState(sessionId);
   const todaysLogs = await getEventLogsForDay(sessionId, gameState.current_day);
 
@@ -376,6 +393,10 @@ export async function endDay(sessionId: string): Promise<EndDayResult> {
     // An id with no match means events.json changed under an existing save.
     // Skipping is the safe read: better an unscored beat than a crash.
     .filter((entry): entry is { row: EventLog; ref: BeatRef } => entry.ref !== null);
+
+  if (scorable.length > 0) {
+    onProgress?.('scoring');
+  }
 
   const scored = await Promise.all(
     scorable.map(async ({ row, ref }) => {
@@ -456,6 +477,7 @@ export async function endDay(sessionId: string): Promise<EndDayResult> {
   // sees total movement rather than the chat delta alone.
   const batch = await runEndOfDayBatchEval({
     sessionId,
+    onProgress,
     eventAffectionDelta,
     eventYukiAffectionDelta,
     eventConcludedToday,

@@ -8,13 +8,58 @@
 // server-side (and no key) reaches the client bundle.
 
 import { useEffect, useState } from 'react';
-import type { DayPlan, EndDayResult } from '@/lib/orchestrator';
+import type { DayPlan, EndDayResult, EndDayStage } from '@/lib/orchestrator';
 import type { GameState } from '@/lib/supabase';
 import type { NPCCharacter } from '@/lib/gemma';
 import type { RelationshipStage } from '@/lib/relationship';
 
 const CHARACTERS: NPCCharacter[] = ['hiyori', 'shiori', 'yuki'];
 const SESSION_KEY = 'socialsim-session-id';
+
+// The lib layer emits semantic stage ids; the wording lives here, since copy
+// is the UI's business.
+const STAGE_COPY: Record<EndDayStage, string> = {
+  scoring: 'weighing what you did today',
+  reflecting: 'they\u2019re thinking about you',
+  diary: 'Hiyori is writing in her diary',
+  saving: 'wrapping up the day',
+};
+
+// Reads the newline-delimited JSON the end-of-day route streams, invoking
+// onStage as each phase actually begins. Split on newlines rather than parsing
+// per chunk, because a chunk boundary can land mid-line.
+async function streamEndDay(sessionId: string, onStage: (stage: EndDayStage) => void): Promise<EndDayResult> {
+  const res = await fetch('/api/day/end', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sessionId }),
+  });
+  if (!res.body) throw new Error('no response body');
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result: EndDayResult | undefined;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const payload = JSON.parse(line) as { stage?: EndDayStage; result?: EndDayResult; error?: string };
+      if (payload.error) throw new Error(payload.error);
+      if (payload.stage) onStage(payload.stage);
+      if (payload.result) result = payload.result;
+    }
+  }
+
+  if (!result) throw new Error('end of day finished without returning a result');
+  return result;
+}
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
@@ -108,8 +153,8 @@ export default function Page() {
     });
 
   const finishDay = () =>
-    run('running end of day (this takes a while)', async () => {
-      const result = await api<EndDayResult>('/api/day/end', { sessionId });
+    run('ending the day\u2026', async () => {
+      const result = await streamEndDay(sessionId!, (stage) => setBusy(STAGE_COPY[stage]));
       say(
         `day ended — stage ${result.newStage}` +
           `${result.diaryGenerated ? ', diary written' : ''}` +

@@ -203,6 +203,14 @@ export interface SegmentResolutionInput {
   currentStage: RelationshipStage;
   affection: number;
   yukiAffection: number;
+  // Regular events already fired today, excluded from the pool. Each segment
+  // otherwise rolls independently, so the same event could fire twice in one
+  // day — early game especially, where only a handful are unlocked and
+  // "you accidentally called her" landing twice in an afternoon reads as a bug.
+  //
+  // Sub-events are deliberately NOT filtered this way: ambient beats are
+  // written to repeat across an arc, which is the whole reason they exist.
+  firedTodayIds: string[];
 }
 
 export type SegmentResolutionResult =
@@ -376,6 +384,9 @@ export function resolveActivitySegment(input: SegmentResolutionInput): SegmentRe
       return false;
     }
     if (!event.eligible_segments?.includes(input.segment)) {
+      return false;
+    }
+    if (input.firedTodayIds.includes(event.id)) {
       return false;
     }
     return meetsGates(event, input);

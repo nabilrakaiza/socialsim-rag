@@ -20,6 +20,7 @@ for (let i = 0; i < 200; i++) {
     currentStage: 'Stranger',
     affection: 0,
     yukiAffection: 0,
+    firedTodayIds: [],
   });
   const key = result.firedEvent ? `EVENT:${result.event.id}` : 'flavor';
   earlyGameCounts[key] = (earlyGameCounts[key] ?? 0) + 1;
