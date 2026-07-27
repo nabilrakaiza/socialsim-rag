@@ -3,7 +3,7 @@ import {
   resolveActivitySegment,
   checkExtendedEventTrigger,
   EXTENDED_EVENT_DAILY_CHANCE,
-} from '../lib/events.js';
+} from '../lib/events';
 
 const events = loadEvents();
 console.log('total events loaded:', events.length);

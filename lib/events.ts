@@ -15,8 +15,8 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import type { RelationshipStage } from './relationship.js';
-import { TOTAL_GAME_DAYS } from './endings.js';
+import type { RelationshipStage } from './relationship';
+import { TOTAL_GAME_DAYS } from './endings';
 
 const EVENTS_PATH = join(process.cwd(), 'lore', 'events.json');
 
@@ -225,7 +225,7 @@ export type SegmentResolutionResult =
 
 // Re-exported so callers of this module don't need to know the game's
 // length lives in endings.ts — that module owns "when does the game end".
-export { TOTAL_GAME_DAYS } from './endings.js';
+export { TOTAL_GAME_DAYS } from './endings';
 
 // Chance an idle day starts a new arc. ~4 idle days per trigger plus
 // ~3.7 avg arc length works out to roughly 3-4 arcs per playthrough.

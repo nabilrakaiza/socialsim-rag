@@ -9,8 +9,8 @@
 import 'dotenv/config';
 
 import { createClient } from '@supabase/supabase-js';
-import { startDay, recordEventResponse, endDay } from '../lib/orchestrator.js';
-import { loadEvents } from '../lib/events.js';
+import { startDay, recordEventResponse, endDay } from '../lib/orchestrator';
+import { loadEvents } from '../lib/events';
 
 const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
 const SESSION_ID = 'tmp-test-orchestrator-session';

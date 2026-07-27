@@ -27,7 +27,7 @@
 // total and the trigger check.
 // ============================================================
 
-import { embedText } from './embeddings.js';
+import { embedText } from './embeddings';
 import {
   getGameState,
   updateGameState,
@@ -35,21 +35,21 @@ import {
   getLastDiaryEntries,
   insertDiaryEntry,
   insertLoreChunks,
-} from './supabase.js';
+} from './supabase';
 import {
   generateAffectionDelta,
   generateKnowledgeUpdate,
   generateDiaryEntry,
-} from './gemma.js';
-import type { NPCCharacter, DialogueTurn, DiaryEntryContext, KnowledgeEventContext } from './gemma.js';
+} from './gemma';
+import type { NPCCharacter, DialogueTurn, DiaryEntryContext, KnowledgeEventContext } from './gemma';
 import {
   affectionToStage,
   affectionToTier,
   tierLabel,
   checkDiaryTrigger,
-} from './relationship.js';
-import type { RelationshipStage } from './relationship.js';
-import type { LoreChunk } from './chunking.js';
+} from './relationship';
+import type { RelationshipStage } from './relationship';
+import type { LoreChunk } from './chunking';
 
 export interface BatchEvalInput {
   sessionId: string;

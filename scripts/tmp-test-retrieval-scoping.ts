@@ -8,7 +8,7 @@
 import 'dotenv/config';
 
 import { createClient } from '@supabase/supabase-js';
-import { embedText } from '../lib/embeddings.js';
+import { embedText } from '../lib/embeddings';
 
 const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
 const SESSION_A = 'tmp-test-scoping-session-a';

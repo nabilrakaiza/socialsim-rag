@@ -23,8 +23,8 @@
 // ============================================================
 
 import { GoogleGenAI } from '@google/genai';
-import type { MatchedChunk } from './supabase.js';
-import type { RelationshipStage } from './relationship.js';
+import type { MatchedChunk } from './supabase';
+import type { RelationshipStage } from './relationship';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY ?? '' });
 

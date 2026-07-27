@@ -18,9 +18,9 @@ import 'dotenv/config';
 
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { chunkLoreFile, LoreChunk } from '../lib/chunking.js';
-import { embedText } from '../lib/embeddings.js';
-import { insertLoreChunks } from '../lib/supabase.js';
+import { chunkLoreFile, LoreChunk } from '../lib/chunking';
+import { embedText } from '../lib/embeddings';
+import { insertLoreChunks } from '../lib/supabase';
 
 const LORE_DIR = join(process.cwd(), 'lore');
 

@@ -8,7 +8,7 @@
 import 'dotenv/config';
 
 import { createClient } from '@supabase/supabase-js';
-import { sendPlayerMessage } from '../lib/chat.js';
+import { sendPlayerMessage } from '../lib/chat';
 
 const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
 const SESSION_ID = 'tmp-test-chat-session';

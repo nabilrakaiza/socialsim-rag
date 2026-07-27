@@ -12,8 +12,8 @@
 
 import 'dotenv/config'; // same ordering requirement as ingest.ts — must come first
 
-import { embedText } from '../lib/embeddings.js';
-import { matchLoreChunks } from '../lib/supabase.js';
+import { embedText } from '../lib/embeddings';
+import { matchLoreChunks } from '../lib/supabase';
 
 // argv[0] is the node binary, argv[1] this script's path, so argv[2] is the first CLI arg
 const query = process.argv[2] ?? 'does she has a boyfriend before, and how was it?';

@@ -14,7 +14,7 @@
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js';
-import type { LoreChunk } from './chunking.js';
+import type { LoreChunk } from './chunking';
 
 // SERVICE_ROLE, not ANON_PUBLIC_KEY — ingestion is a server-side/trusted
 // script writing data, and this key bypasses Row Level Security.
@@ -157,6 +157,33 @@ export interface DiaryEntry {
   trigger_type: string;
   event_id: string | null;
   created_at: string;
+}
+
+// Every column is written explicitly rather than leaning on the table's
+// defaults. The defaults exist, but relying on them is how relationship_stage
+// ended up defaulting to lowercase 'stranger' while the code only ever
+// produces 'Stranger' — a fresh row held a value the type said was impossible.
+export async function insertGameState(sessionId: string): Promise<GameState> {
+  const { data, error } = await supabase
+    .from('game_state')
+    .insert({
+      session_id: sessionId,
+      current_day: 1,
+      affection: 0,
+      relationship_stage: 'Stranger',
+      yuki_affection: 0,
+      confessed: false,
+      game_over: false,
+      ending_id: null,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
 }
 
 // .single() errors if 0 or 2+ rows come back, which is what you want

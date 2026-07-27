@@ -17,11 +17,11 @@
 // same boundary reasoning as batch-eval.ts's day-advancement note.
 // ============================================================
 
-import { embedText } from './embeddings.js';
-import { matchLoreChunks, getMessagesForDay, insertMessage } from './supabase.js';
-import { generateDialogue } from './gemma.js';
-import type { NPCCharacter } from './gemma.js';
-import type { RelationshipStage } from './relationship.js';
+import { embedText } from './embeddings';
+import { matchLoreChunks, getMessagesForDay, insertMessage } from './supabase';
+import { generateDialogue } from './gemma';
+import type { NPCCharacter } from './gemma';
+import type { RelationshipStage } from './relationship';
 
 export interface SendMessageInput {
   sessionId: string;

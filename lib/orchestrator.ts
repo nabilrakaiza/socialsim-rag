@@ -7,6 +7,7 @@
 // lib/batch-eval.ts handles one end-of-day. This ties them together.
 //
 // Three entry points, matching what a frontend needs:
+//   startNewGame()        -> mints a session
 //   startDay()            -> the day's plan (schedule + what fires when)
 //   recordEventResponse() -> the player's free text for one event
 //   confess()             -> ends the run immediately with an ending
@@ -26,14 +27,15 @@
 
 import {
   getGameState,
+  insertGameState,
   updateGameState,
   getAllEventLogs,
   getEventLogsForDay,
   insertEventLog,
   updateEventLogAction,
   updateEventLogOutcome,
-} from './supabase.js';
-import type { EventLog } from './supabase.js';
+} from './supabase';
+import type { EventLog, GameState } from './supabase';
 import {
   loadEvents,
   checkExtendedEventTrigger,
@@ -42,22 +44,22 @@ import {
   affectedMeter,
   eventParticipant,
   skipPenalty,
-} from './events.js';
+} from './events';
 import type {
   ActiveExtendedEvent,
   ActivitySegmentName,
   GameEvent,
   SubEvent,
   FlavorActivity,
-} from './events.js';
-import { generateDailySchedule } from './schedule.js';
-import type { ScheduleSegment } from './schedule.js';
-import { generateEventOutcome } from './gemma.js';
-import type { KnowledgeEventContext, NPCCharacter } from './gemma.js';
-import { runEndOfDayBatchEval, withRetry } from './batch-eval.js';
-import { checkEnding } from './endings.js';
-import type { EndingId } from './endings.js';
-import { affectionToStage, type RelationshipStage } from './relationship.js';
+} from './events';
+import { generateDailySchedule } from './schedule';
+import type { ScheduleSegment } from './schedule';
+import { generateEventOutcome } from './gemma';
+import type { KnowledgeEventContext, NPCCharacter } from './gemma';
+import { runEndOfDayBatchEval, withRetry } from './batch-eval';
+import { checkEnding } from './endings';
+import type { EndingId } from './endings';
+import { affectionToStage, type RelationshipStage } from './relationship';
 
 const ACTIVITY_SEGMENTS: ActivitySegmentName[] = [
   'morning_activity',
@@ -151,6 +153,13 @@ export function reconstructArcState(logs: EventLog[], currentDay: number): ArcSt
 // ------------------------------------------------------------
 // Entry points
 // ------------------------------------------------------------
+
+// Mints a playthrough. The session id is the only handle the client keeps —
+// there are no accounts, so whoever holds the id holds the save. That's why
+// it's a UUID rather than anything guessable or sequential.
+export async function startNewGame(): Promise<GameState> {
+  return insertGameState(crypto.randomUUID());
+}
 
 // HINT: rough sequence —
 //

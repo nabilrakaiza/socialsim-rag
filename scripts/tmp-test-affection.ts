@@ -4,7 +4,7 @@
 
 import 'dotenv/config';
 
-import { generateAffectionDelta } from '../lib/gemma.js';
+import { generateAffectionDelta } from '../lib/gemma';
 
 async function main() {
   const warm = await generateAffectionDelta(

@@ -11,7 +11,7 @@
 import 'dotenv/config';
 
 import { createClient } from '@supabase/supabase-js';
-import { runEndOfDayBatchEval } from '../lib/batch-eval.js';
+import { runEndOfDayBatchEval } from '../lib/batch-eval';
 
 const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
 const SESSION_ID = 'tmp-test-batch-eval-session';

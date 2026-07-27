@@ -5,8 +5,8 @@
 
 import 'dotenv/config';
 
-import { generateEventOutcome } from '../lib/gemma.js';
-import { loadEvents, affectedMeter } from '../lib/events.js';
+import { generateEventOutcome } from '../lib/gemma';
+import { loadEvents, affectedMeter } from '../lib/events';
 
 const event = loadEvents().find((e) => e.id === 'rain_umbrella')!;
 const character = affectedMeter(event);

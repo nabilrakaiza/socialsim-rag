@@ -4,9 +4,9 @@
 
 import 'dotenv/config';
 
-import { embedText } from '../lib/embeddings.js';
-import { matchLoreChunks } from '../lib/supabase.js';
-import { generateDialogue } from '../lib/gemma.js';
+import { embedText } from '../lib/embeddings';
+import { matchLoreChunks } from '../lib/supabase';
+import { generateDialogue } from '../lib/gemma';
 
 const playerMessage = 'hey, what did you get up to this weekend?';
 

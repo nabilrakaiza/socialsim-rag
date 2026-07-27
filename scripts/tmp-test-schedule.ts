@@ -2,7 +2,7 @@
 // durations positive, segments sum to 24h, proportions look plausible.
 // No DB/API calls — pure function, safe to run repeatedly.
 
-import { generateDailySchedule } from '../lib/schedule.js';
+import { generateDailySchedule } from '../lib/schedule';
 
 function formatHour(h: number): string {
   const totalMinutes = Math.round(h * 60) % (24 * 60);

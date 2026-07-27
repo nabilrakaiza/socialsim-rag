@@ -6,9 +6,9 @@
 // pulls in lib/supabase.ts, which constructs its client at module load.
 import 'dotenv/config';
 
-import { reconstructArcState } from '../lib/orchestrator.js';
-import type { EventLog } from '../lib/supabase.js';
-import { loadEvents } from '../lib/events.js';
+import { reconstructArcState } from '../lib/orchestrator';
+import type { EventLog } from '../lib/supabase';
+import { loadEvents } from '../lib/events';
 
 let seq = 0;
 function log(event_id: string, day_triggered: number): EventLog {

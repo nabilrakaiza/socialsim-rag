@@ -12,7 +12,7 @@ import {
   getMessagesForDay,
   getLastDiaryEntries,
   insertDiaryEntry,
-} from '../lib/supabase.js';
+} from '../lib/supabase';
 
 const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
 const SESSION_ID = 'tmp-test-session';

@@ -9,7 +9,7 @@ import {
   SUB_EVENT_SHARE,
   type ActiveExtendedEvent,
   type ActivitySegmentName,
-} from '../lib/events.js';
+} from '../lib/events';
 
 const SEGMENTS: ActivitySegmentName[] = ['morning_activity', 'activity_after_lunch', 'activity_after_dinner'];
 

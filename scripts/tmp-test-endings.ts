@@ -1,7 +1,7 @@
 // Checks checkEnding against every boundary in events.json's `endings`
 // triggers, and confirms each id it can return actually exists in the data.
 
-import { checkEnding, TOTAL_GAME_DAYS, type EndingId } from '../lib/endings.js';
+import { checkEnding, TOTAL_GAME_DAYS, type EndingId } from '../lib/endings';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
