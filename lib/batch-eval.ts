@@ -8,11 +8,11 @@
 //   lib/gemma.ts          (generateAffectionDelta/KnowledgeUpdate/DiaryEntry)
 //   lib/supabase.ts       (game_state/messages/diary_entries + insertLoreChunks)
 //
-// Event integration (eventConcludedToday/canonEventToday below) is
-// NOT derived internally — the event system doesn't exist yet, and
-// events_log has no "concluded"/"canon" distinction defined to
-// interpret. Caller supplies these explicitly; omitting them is
-// correct for now since only chat exists.
+// Event integration is NOT derived internally. lib/orchestrator.ts owns
+// event state and passes the results in (eventConcludedToday,
+// canonEventToday, eventAffectionDelta, ...), so this function never
+// touches events_log and keeps one job: score the day's conversation,
+// write the affection/knowledge/diary results.
 //
 // Day/action-point advancement is deliberately NOT this function's
 // job — it evaluates the day that already happened, it doesn't
@@ -57,6 +57,14 @@ export interface BatchEvalInput {
   canonEventToday?: boolean;
   eventSummary?: string; // for the diary prompt, if something happened
   adrianAction?: string; // player's last meaningful action/choice today
+  // Today's event outcomes, already scored by the orchestrator (see
+  // lib/gemma.ts's generateEventOutcome and lib/events.ts's skipPenalty).
+  // Passed in rather than applied separately so affection is written in
+  // exactly one place, and so a big event actually reaches the +/-15 diary
+  // threshold below — that check reads total movement, and events scored
+  // outside this function would be invisible to it.
+  eventAffectionDelta?: number;
+  eventYukiAffectionDelta?: number;
 }
 
 export interface BatchEvalResult {
@@ -71,7 +79,7 @@ export interface BatchEvalResult {
 // makes an occasional transient/rate-limit failure more likely than
 // the old one-at-a-time version, and waiting out a minute is enough
 // to clear either rate limit window.
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
@@ -112,29 +120,28 @@ async function buildKnowledgeChunk(
   };
 }
 
-interface AffectionUpdateResult {
-  affection: number;
-  stage: RelationshipStage;
-}
-
 // No messages today = no delta call = affection unchanged, not zeroed.
-async function buildAffectionUpdate(
+//
+// Returns the raw delta rather than a finished total, because the caller
+// adds event deltas to it before clamping and clamping twice gives a
+// different answer: from 95, chat +8 then event -5 should land on 98, but
+// clamping the chat step to 100 first turns it into 95.
+async function buildChatAffectionDelta(
   character: 'hiyori' | 'yuki',
   turns: DialogueTurn[],
   currentAffection: number
-): Promise<AffectionUpdateResult> {
-  const currentStage = affectionToStage(currentAffection);
-
+): Promise<number> {
   if (turns.length === 0) {
-    return { affection: currentAffection, stage: currentStage };
+    return 0;
   }
 
   const { delta } = await withRetry(() =>
-    generateAffectionDelta(character, turns, currentAffection, currentStage)
+    generateAffectionDelta(character, turns, currentAffection, affectionToStage(currentAffection))
   );
-  const affection = Math.min(Math.max(delta + currentAffection, 0), 100);
-  return { affection, stage: affectionToStage(affection) };
+  return delta;
 }
+
+const clampAffection = (value: number): number => Math.min(Math.max(value, 0), 100);
 
 export async function runEndOfDayBatchEval(input: BatchEvalInput): Promise<BatchEvalResult> {
   const gameState = await getGameState(input.sessionId);
@@ -144,12 +151,12 @@ export async function runEndOfDayBatchEval(input: BatchEvalInput): Promise<Batch
   const shioriMessages: DialogueTurn[] = messages.filter(m => m.character == "shiori").map(m => ({role: "npc", content: m.content}));
   const hiyoriMessages: DialogueTurn[] = messages.filter(m => m.character == "hiyori").map(m => ({role: "npc", content: m.content}));
 
-  const [yukiChunk, shioriChunk, hiyoriChunk, yukiUpdate, hiyoriUpdate] = await Promise.all([
+  const [yukiChunk, shioriChunk, hiyoriChunk, yukiChatDelta, hiyoriChatDelta] = await Promise.all([
     buildKnowledgeChunk('yuki', yukiMessages, input.sessionId, gameState.current_day),
     buildKnowledgeChunk('shiori', shioriMessages, input.sessionId, gameState.current_day),
     buildKnowledgeChunk('hiyori', hiyoriMessages, input.sessionId, gameState.current_day),
-    buildAffectionUpdate('yuki', yukiMessages, gameState.yuki_affection),
-    buildAffectionUpdate('hiyori', hiyoriMessages, gameState.affection),
+    buildChatAffectionDelta('yuki', yukiMessages, gameState.yuki_affection),
+    buildChatAffectionDelta('hiyori', hiyoriMessages, gameState.affection),
   ]);
 
   const knowledgeChunks = [yukiChunk, shioriChunk, hiyoriChunk].filter(
@@ -163,10 +170,16 @@ export async function runEndOfDayBatchEval(input: BatchEvalInput): Promise<Batch
     );
   }
 
-  const updatedYukiAffection = yukiUpdate.affection;
-  const updatedYukiStage = yukiUpdate.stage;
-  const updatedHiyoriAffection = hiyoriUpdate.affection;
-  const updatedHiyoriStage = hiyoriUpdate.stage;
+  // Chat and event deltas are summed before a single clamp — see
+  // buildChatAffectionDelta on why clamping each separately is wrong.
+  const updatedYukiAffection = clampAffection(
+    gameState.yuki_affection + yukiChatDelta + (input.eventYukiAffectionDelta ?? 0)
+  );
+  const updatedYukiStage = affectionToStage(updatedYukiAffection);
+  const updatedHiyoriAffection = clampAffection(
+    gameState.affection + hiyoriChatDelta + (input.eventAffectionDelta ?? 0)
+  );
+  const updatedHiyoriStage = affectionToStage(updatedHiyoriAffection);
 
   const mostRecentDiaryEntry = await getLastDiaryEntries(input.sessionId, 1);
   // no previous entry at all -> always trigger-eligible, not "0 days since"

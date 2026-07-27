@@ -35,11 +35,16 @@ function simulateArc(arcId: string, startDay: number): SimResult {
         yukiAffection: 60,
       });
 
-      if (result.firedEvent && 'subEvent' in result) {
-        out.firedSubEvents.push({ dayInArc: day - startDay + 1, segment, id: result.subEvent.id });
-        // the caller owns this bookkeeping — mirrors what the orchestrator will do
-        if (!active.firedSubEventIds.includes(result.subEvent.id)) {
-          active.firedSubEventIds.push(result.subEvent.id);
+      // `result.subEvent` reads directly now that ArcSegmentResolutionResult
+      // declares it optional — the old `'subEvent' in result` check typed it
+      // as `unknown`, since TS 4.9's `in` narrowing doesn't exclude members
+      // lacking the property.
+      if (result.firedEvent && result.subEvent) {
+        const subEvent = result.subEvent;
+        out.firedSubEvents.push({ dayInArc: day - startDay + 1, segment, id: subEvent.id });
+        // the caller owns this bookkeeping — mirrors what the orchestrator does
+        if (!active.firedSubEventIds.includes(subEvent.id)) {
+          active.firedSubEventIds.push(subEvent.id);
         }
       } else if (result.firedEvent) {
         out.regularEventIds.push(result.event.id);

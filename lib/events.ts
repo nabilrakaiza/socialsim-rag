@@ -283,8 +283,16 @@ export interface ArcSegmentResolutionInput extends SegmentResolutionInput {
   activeEvent: ActiveExtendedEvent;
 }
 
+// Spelled out rather than `SegmentResolutionResult | {...subEvent}`, so the
+// union is properly discriminated. With the fired-without-sub member simply
+// lacking `subEvent`, callers had to write `'subEvent' in result` — and since
+// TS 4.9 that narrowing does NOT exclude members without the property, it
+// intersects them with Record<'subEvent', unknown>, so `result.subEvent` came
+// back as `unknown`. Declaring `subEvent?: undefined` makes it plain
+// `SubEvent | undefined`, readable directly with no `in` check and no cast.
 export type ArcSegmentResolutionResult =
-  | SegmentResolutionResult
+  | { firedEvent: false; flavor: FlavorActivity }
+  | { firedEvent: true; event: GameEvent; subEvent?: undefined }
   | { firedEvent: true; event: GameEvent; subEvent: SubEvent };
 
 // Resolves one activity segment while an arc is active. Regular events

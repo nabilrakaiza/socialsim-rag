@@ -118,8 +118,15 @@ export async function matchLoreMultiCharacter(
 export interface GameState {
   session_id: string;
   current_day: number;
+  // Vestigial — the action-point system was dropped for the schedule-based
+  // one (README's Daily Flow). Still a live column, so it stays on the type,
+  // but nothing reads or writes it.
   action_points: number;
   affection: number;
+  // Deliberately `string`, not RelationshipStage: it's a plain text column
+  // with no constraint, so the DB can hold anything. It's also denormalized
+  // — always affectionToStage(affection), written by batch-eval for display.
+  // Derive the stage from affection in logic rather than trusting this.
   relationship_stage: string;
   yuki_affection: number;
   confessed: boolean;
@@ -245,10 +252,30 @@ export interface EventLog {
   created_at: string;
 }
 
+// Returns the inserted row rather than void: the orchestrator writes a row
+// when an event fires and needs its id straight away to hand to the client,
+// which passes it back with the player's response. A caller that can't
+// identify what it just wrote would have to guess.
 export async function insertEventLog(
   entry: Omit<EventLog, 'id' | 'created_at'>
+): Promise<EventLog> {
+  const { data, error } = await supabase.from('events_log').insert(entry).select().single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+// player_action is filled in when the player answers; it stays null on rows
+// for events that were ignored, which is what tells the batch eval to apply
+// skipPenalty instead of spending an LLM call grading silence.
+export async function updateEventLogAction(
+  eventLogId: string,
+  playerAction: string
 ): Promise<void> {
-  const { error } = await supabase.from('events_log').insert(entry);
+  const { error } = await supabase.from('events_log').update({ player_action: playerAction }).eq('id', eventLogId);
 
   if (error) {
     throw new Error(error.message);

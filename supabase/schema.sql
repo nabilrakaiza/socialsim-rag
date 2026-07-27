@@ -61,17 +61,21 @@ create table public.game_state (
   id                    uuid primary key default gen_random_uuid(),
   session_id            text unique not null,   -- frontend-generated session ID
   current_day           integer default 1,
-  action_points         integer default 3,      -- resets to 3 each day
+  -- VESTIGIAL as of 2026-07-26: the action-point system was dropped in
+  -- favour of the schedule itself being the day's scarcity (see README's
+  -- Daily Flow). Nothing reads or writes this column any more. Kept
+  -- because dropping a column is irreversible and it costs nothing.
+  action_points         integer default 3,
   affection             integer default 0,      -- 0-100, never exposed to player
-  -- NOTE: default is lowercase 'stranger', but lib/relationship.ts's
-  -- RelationshipStage type only ever produces capitalized values
-  -- ('Stranger' | 'Acquaintance' | 'Friend' | 'Close Friend'). No
-  -- game_state rows exist yet, so this hasn't bitten anything, but
-  -- whatever eventually creates a new session's row should either
-  -- explicitly set relationship_stage: 'Stranger' on insert (don't
-  -- rely on this default), or the default should be fixed to match —
-  -- flagging rather than silently relying on the mismatch.
-  relationship_stage    text default 'stranger',
+  -- Default was lowercase 'stranger' while lib/relationship.ts's
+  -- RelationshipStage only ever produces capitalized values, so a fresh
+  -- row held something that type says is impossible. Fixed 2026-07-27 —
+  -- the live default is now 'Stranger'. Still a plain text column with no
+  -- check constraint, so treat the stored value as untrusted anyway: it's
+  -- denormalized (always affectionToStage(affection)), written by
+  -- batch-eval for display. Game logic should derive the stage from
+  -- affection rather than read this column.
+  relationship_stage    text default 'Stranger',
   yuki_affection        integer default 0,      -- hidden, for secret end
   confessed             boolean default false,
   game_over             boolean default false,
