@@ -90,9 +90,33 @@ export default function Page() {
 
   const [endResult, setEndResult] = useState<EndDayResult | null>(null);
   const [endProgress, setEndProgress] = useState<string | null>(null);
-  const [endingDay, setEndingDay] = useState(false);
 
-  const clock = useDayClock(plan?.schedule ?? null);
+  const guard = async (fn: () => Promise<void>) => {
+    setError(null);
+    try {
+      await fn();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
+  const finishDay = useCallback(
+    () =>
+      guard(async () => {
+        if (!sessionId) return;
+        setEndProgress(STAGE_COPY.scoring);
+        try {
+          const result = await streamEndDay(sessionId, (stage) => setEndProgress(STAGE_COPY[stage]));
+          setEndResult(result);
+          setState(await api<GameState>(`/api/session/${sessionId}`));
+        } finally {
+          setEndProgress(null);
+        }
+      }),
+    [sessionId]
+  );
+
+  const clock = useDayClock(plan?.schedule ?? null, finishDay);
   const { advance } = clock;
 
   // Resume on load — the session id is all the client keeps.
@@ -107,15 +131,6 @@ export default function Page() {
         setSessionId(null);
       });
   }, []);
-
-  const guard = async (fn: () => Promise<void>) => {
-    setError(null);
-    try {
-      await fn();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  };
 
   const newGame = () =>
     guard(async () => {
@@ -185,29 +200,6 @@ export default function Page() {
       }),
     [advance]
   );
-
-  const finishDay = useCallback(
-    () =>
-      guard(async () => {
-        if (!sessionId) return;
-        setEndingDay(true);
-        setEndProgress(STAGE_COPY.scoring);
-        try {
-          const result = await streamEndDay(sessionId, (stage) => setEndProgress(STAGE_COPY[stage]));
-          setEndResult(result);
-          setState(await api<GameState>(`/api/session/${sessionId}`));
-        } finally {
-          setEndProgress(null);
-        }
-      }),
-    [sessionId]
-  );
-
-  // The day's segments have run out — settle it. Guarded on endingDay so the
-  // effect can't fire the (expensive, ~90s) end-of-day twice.
-  useEffect(() => {
-    if (plan && clock.done && !endingDay) void finishDay();
-  }, [plan, clock.done, endingDay, finishDay]);
 
   const confess = () =>
     guard(async () => {
@@ -336,10 +328,7 @@ export default function Page() {
                 recap={recap}
                 result={endResult}
                 progress={endProgress}
-                onContinue={() => {
-                  setPlan(null);
-                  setEndingDay(false);
-                }}
+                onContinue={() => setPlan(null)}
               />
             </div>
           )}

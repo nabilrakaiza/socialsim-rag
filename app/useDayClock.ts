@@ -46,16 +46,29 @@ export interface DayClock {
   advance: () => void;
 }
 
-export function useDayClock(schedule: ScheduleSegment[] | null): DayClock {
+export function useDayClock(
+  schedule: ScheduleSegment[] | null,
+  // Called from advance() when the last segment is consumed. A callback rather
+  // than the caller watching `done` in an effect: end-of-day is expensive
+  // (minutes of LLM work), and firing it from the event that actually ends the
+  // day is both clearer and impossible to double-trigger on a re-render.
+  onDayComplete?: () => void
+): DayClock {
   const [index, setIndex] = useState(0);
   const [elapsedHours, setElapsedHours] = useState(0);
 
   // Reset to the first playable segment whenever a new day's schedule arrives.
-  useEffect(() => {
-    if (!schedule) return;
-    setIndex(nextPlayableIndex(schedule, 0));
+  //
+  // Adjusted during render rather than in an effect. Setting state
+  // synchronously inside an effect triggers a second render pass every time —
+  // React's documented approach for "reset state when a prop changes" is
+  // exactly this comparison against the previous value.
+  const [seenSchedule, setSeenSchedule] = useState(schedule);
+  if (schedule !== seenSchedule) {
+    setSeenSchedule(schedule);
+    setIndex(schedule ? nextPlayableIndex(schedule, 0) : 0);
     setElapsedHours(0);
-  }, [schedule]);
+  }
 
   const segment = schedule && index < schedule.length ? schedule[index] : null;
   const isFree = segment?.type === 'free';
@@ -79,8 +92,14 @@ export function useDayClock(schedule: ScheduleSegment[] | null): DayClock {
   const advance = useCallback(() => {
     if (!schedule) return;
     setElapsedHours(0);
-    setIndex((current) => nextPlayableIndex(schedule, current + 1));
-  }, [schedule]);
+    setIndex((current) => {
+      const next = nextPlayableIndex(schedule, current + 1);
+      if (next >= schedule.length) {
+        onDayComplete?.();
+      }
+      return next;
+    });
+  }, [schedule, onDayComplete]);
 
   return useMemo(() => {
     const inGameHour = segment ? segment.startHour + elapsedHours : 24;
