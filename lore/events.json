@@ -33,7 +33,7 @@
     },
     {
       "id": "met_with_friends_public",
-      "title": "Coincidence at [Location]",
+      "title": "Coincidence [Location]",
       "description": "You run into Hiyori together with Shiori while [activity]. The encounter lasts longer than any of you planned.",
       "stage_required": "stranger",
       "affection_required": 0,
@@ -77,7 +77,7 @@
           "the library Level 5 quiet zone",
           "the UTown lawn with her laptop",
           "a convenience store near her hostel at 10pm",
-          "waiting alone at a bus stop in light rain"
+          "a bus stop in light rain"
         ]
       },
       "player_action_prompt": "She's alone. It's just you two. What do you say?",

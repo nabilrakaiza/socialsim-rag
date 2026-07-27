@@ -6,6 +6,13 @@ export const metadata: Metadata = {
   description: 'A narrative, RAG-powered dating simulation.',
 };
 
+export const viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fbfaf9' },
+    { media: '(prefers-color-scheme: dark)', color: '#12100f' },
+  ],
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">

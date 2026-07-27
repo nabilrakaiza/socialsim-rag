@@ -42,6 +42,7 @@ import {
   resolveActivitySegment,
   resolveActivitySegmentDuringArc,
   affectedMeter,
+  applyRandomizedDetails,
   eventParticipant,
   skipPenalty,
 } from './events';
@@ -357,7 +358,12 @@ interface BeatRef {
 function findBeat(eventId: string, events: GameEvent[]): BeatRef | null {
   const topLevel = events.find((event) => event.id === eventId);
   if (topLevel) {
-    return { beat: topLevel, parent: topLevel };
+    // Re-randomised rather than recalled: events_log stores only the id, so the
+    // exact detail the player saw isn't recoverable. Which cafe it was doesn't
+    // affect how a response is graded — what matters is that no raw
+    // "[activity]" placeholder is ever handed to the model.
+    const filled = applyRandomizedDetails(topLevel);
+    return { beat: filled, parent: filled };
   }
 
   for (const event of events) {

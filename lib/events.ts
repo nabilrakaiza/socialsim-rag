@@ -198,6 +198,33 @@ export function eventParticipant(event: GameEvent): 'hiyori' | 'shiori' | 'yuki'
   return event.participant ?? affectedMeter(event);
 }
 
+// Some events carry `[placeholder]` slots in their text with the candidate
+// fills in `randomized_details` — `[activity]` draws from `activity_options`,
+// `[Location]` from `location_options`. Nothing was substituting them, so the
+// raw bracket text reached the player ("...while [activity]").
+//
+// Returns a copy rather than mutating: loadEvents() re-reads the file each
+// call, but mutating shared objects would still be a trap for any caller that
+// holds one across fires.
+export function applyRandomizedDetails(event: GameEvent): GameEvent {
+  const details = event.randomized_details;
+  if (!details) return event;
+
+  const fill = (text: string): string =>
+    text.replace(/\[([^\]]+)\]/g, (whole, key: string) => {
+      const options = details[`${key.toLowerCase()}_options`];
+      if (!options || options.length === 0) return whole;
+      return options[Math.floor(Math.random() * options.length)];
+    });
+
+  return {
+    ...event,
+    title: fill(event.title),
+    description: fill(event.description),
+    player_action_prompt: fill(event.player_action_prompt),
+  };
+}
+
 export interface SegmentResolutionInput {
   segment: ActivitySegmentName;
   currentStage: RelationshipStage;
@@ -398,5 +425,5 @@ export function resolveActivitySegment(input: SegmentResolutionInput): SegmentRe
   }
 
   const event = eligibleEvents[Math.floor(Math.random() * eligibleEvents.length)];
-  return { firedEvent: true, event };
+  return { firedEvent: true, event: applyRandomizedDetails(event) };
 }

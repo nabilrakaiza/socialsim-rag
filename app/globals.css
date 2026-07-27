@@ -1,26 +1,46 @@
-:root {
-  --bg: #fbfaf9;
-  --fg: #1c1917;
-  --muted: #78716c;
-  --line: #e7e5e4;
-  --accent: #7c3aed;
+@import "tailwindcss";
+
+/* Tailwind v4 is CSS-first: design tokens live here rather than in a JS config.
+   Deliberately restrained — a warm off-white/ink pair, one accent, and a
+   single "paper" tone for the diary. The game is mostly text, so contrast and
+   line length matter more than colour. */
+@theme {
+  --color-canvas: #fbfaf9;
+  --color-surface: #ffffff;
+  --color-ink: #1c1917;
+  --color-muted: #78716c;
+  --color-line: #e7e5e4;
+  --color-accent: #7c3aed;
+  --color-paper: #fdf9ef;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1c1917;
-    --fg: #f5f5f4;
-    --muted: #a8a29e;
-    --line: #292524;
-    --accent: #a78bfa;
+  @theme {
+    --color-canvas: #12100f;
+    --color-surface: #1c1917;
+    --color-ink: #f5f5f4;
+    --color-muted: #a8a29e;
+    --color-line: #2c2724;
+    --color-accent: #a78bfa;
+    --color-paper: #1f1b16;
   }
 }
 
-* { box-sizing: border-box; }
-
+html,
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
+
+/* The one thing worth animating without a library: the "thinking" pulse while
+   an NPC composes a reply, which is on screen for ~14s. */
+@keyframes breathe {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+.animate-breathe { animation: breathe 1.6s ease-in-out infinite; }
