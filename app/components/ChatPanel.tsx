@@ -37,7 +37,16 @@ export const ChatPanel = memo(function ChatPanel({
   disabled: boolean;
   disabledReason?: string;
 }) {
-  const [draft, setDraft] = useState('');
+  // Per character, not one shared box. With a single draft, half a message to
+  // Hiyori followed by a tab switch would sit there ready to send to Yuki.
+  const [drafts, setDrafts] = useState<Record<NPCCharacter, string>>({
+    hiyori: '',
+    shiori: '',
+    yuki: '',
+  });
+  const draft = drafts[character];
+  const setDraft = (value: string) => setDrafts((prev) => ({ ...prev, [character]: value }));
+
   const endRef = useRef<HTMLDivElement>(null);
 
   // Only this character's side of the conversation — the siloed-knowledge rule

@@ -83,7 +83,7 @@ export default function Page() {
 
   const [character, setCharacter] = useState<NPCCharacter>('hiyori');
   const [lines, setLines] = useState<ChatLine[]>([]);
-  const [replyPending, setReplyPending] = useState(false);
+  const [pendingReplies, setPendingReplies] = useState<NPCCharacter[]>([]);
 
   const [answered, setAnswered] = useState<Record<string, boolean>>({});
   const [savingAnswer, setSavingAnswer] = useState(false);
@@ -168,19 +168,30 @@ export default function Page() {
       guard(async () => {
       if (!state) return;
       const stamp = `${Date.now()}`;
-      setLines((prev) => [...prev, { id: `p-${stamp}`, character, role: 'player', content: text }]);
-      setReplyPending(true);
+      // Captured now, so a reply is always filed against whoever it was sent
+      // to even if the player switches tabs while waiting.
+      const askedFor = character;
+
+      setLines((prev) => [...prev, { id: `p-${stamp}`, character: askedFor, role: 'player', content: text }]);
+      setPendingReplies((prev) => [...prev, askedFor]);
       try {
         const { reply } = await api<{ reply: string }>('/api/chat', {
           sessionId,
-          character,
+          character: askedFor,
           day: state.current_day,
           relationshipStage: state.relationship_stage as RelationshipStage,
           playerMessage: text,
         });
-        setLines((prev) => [...prev, { id: `n-${stamp}`, character, role: 'npc', content: reply }]);
+        setLines((prev) => [...prev, { id: `n-${stamp}`, character: askedFor, role: 'npc', content: reply }]);
       } finally {
-        setReplyPending(false);
+        // Removes one entry, not every match, so concurrent asks to the same
+        // person can't clear each other's indicator.
+        setPendingReplies((prev) => {
+          const next = [...prev];
+          const at = next.indexOf(askedFor);
+          if (at !== -1) next.splice(at, 1);
+          return next;
+        });
       }
     }),
     [state, character, sessionId]
@@ -350,7 +361,7 @@ export default function Page() {
                   character={character}
                   onCharacterChange={setCharacter}
                   onSend={send}
-                  pending={replyPending}
+                  pending={pendingReplies.includes(character)}
                   disabled={clock.expired}
                   disabledReason="Time’s up — you need to get going."
                 />
