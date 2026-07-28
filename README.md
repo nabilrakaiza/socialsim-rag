@@ -291,6 +291,44 @@ The schedule and day number are already available where dialogue is generated, s
 
 ---
 
+## Known problem: end-of-day is slow, and the cause isn't what it looked like
+
+End of day runs 210s on average and 242s at worst, against Vercel Hobby's hard 300s ceiling. `scripts/tmp-profile-endday.ts` breaks it down by phase (it timestamps the stage callbacks the route already streams, so no instrumentation is needed):
+
+| phase | avg | share | |
+|---|---|---|---|
+| setup | 0.4s | 0% | fetch state and the day's rows |
+| scoring | 22.8s | 11% | grade the day's answered beats |
+| **reflecting** | **97.2s** | **46%** | knowledge updates + affection deltas |
+| **diary** | **89.1s** | **42%** | generate and embed the diary |
+| saving | 0.8s | 0% | writes, ending check, advance |
+
+Three things this corrected:
+
+- **The diary isn't the long pole.** `reflecting` is bigger. Splitting the diary off alone would still leave ~120s behind.
+- **Concurrency isn't the problem.** `reflecting` fires five calls through `Promise.all`; running the same five sequentially takes **2.6× longer**. It's slow because Gemma is slow *and wildly variable* — identical work measured anywhere from 19s to 86s, and `Promise.all` finishes with its worst call.
+- **"~14s per LLM call" was a dialogue figure.** A knowledge-update prompt takes 20–40s. Different prompt shape, different cost.
+
+### The 23× option, and why it isn't free
+
+On the same knowledge prompt, measured over several runs:
+
+| model | avg | third person in 5 runs |
+|---|---|---|
+| `gemma-4-26b-a4b-it` | 24.0s | **0/5 violations** |
+| `gemini-3.1-flash-lite` | **1.0s** | **5/5 violations** |
+
+Flash-lite is 23× faster and would take end of day from 210s to roughly 15s — but it ignores the third-person instruction every single time, writing *"Adrian has a habit of catching **me** at **my** worst"* where the prompt requires *"Adrian did X — Hiyori took that to mean Y"*. Those chunks are stored and retrieved later, so first-person entries would poison the corpus the whole system reads back.
+
+Two ways forward:
+
+1. **Re-tune the batch prompts for flash-lite.** 23× faster, makes the 300s ceiling irrelevant and the game far nicer to play. Needs prompt work across all four batch call types and verification that each holds its format — the failure is at least loud and cheap to test for.
+2. **Split end of day into separate requests.** Bounded and safe, no prompt risk, but a workaround for a 20× slower model: end of day still takes three and a half minutes. Natural seams are scoring / reflecting / diary, at roughly 23s, 97s and 89s — each request must leave the database in a state the next can resume from, which is what makes a mid-way failure recoverable rather than corrupting.
+
+Worth trying (1) timeboxed first, and falling back to (2) if the format can't be held.
+
+---
+
 ## Deployment
 
 Two Vercel projects rather than one. This repo hosts the engine and its API; the personal site's playground page calls a thin proxy route there, which forwards to this deployment. `SERVICE_ROLE` and `GOOGLE_API_KEY` stay in this project only — a rate limit or a bad deploy here can't take the main site's build down with it, and this repo stays a standalone, showable record of the RAG work.
