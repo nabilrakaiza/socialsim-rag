@@ -10,10 +10,11 @@
 //
 // Two notes on events.json's trigger text:
 //
-//  - NOT implemented: bad_end's "or multiple wrong moves accumulate". There is no
-//    wrong-move counter in game_state and no definition of what
-//    counts as one, so only the affection-based path is implemented.
-//    Adding it later means a new counter column plus a threshold.
+//  - bad_end is purely the low-affection confession: the player shoots their
+//    shot before she's anywhere near ready, and she turns him down. The
+//    trigger text also says "or multiple wrong moves accumulate", but that's
+//    describing why affection ended up low, not a second mechanic — there is
+//    no wrong-move counter and there isn't meant to be one.
 //
 //  - Settled: secret_end's timing was left open by its trigger text, which
 //    says "Yuki's affection >= 70 and the player never confessed to

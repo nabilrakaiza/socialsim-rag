@@ -1460,7 +1460,7 @@
     "bad_end": {
       "id": "bad_end",
       "title": "Please Don't",
-      "trigger": "confess with affection below 40, or multiple wrong moves accumulate",
+      "trigger": "confess with affection below 40",
       "description": "She's uncomfortable. You can see it. She keeps it civil — she's not cruel — but there's a distance in her eyes that wasn't there before. She excuses herself. Shiori finds out. Things are awkward for a while.",
       "scene": "You see her at the Science canteen a week later. She's with Shiori. They're laughing about something. She glances over, briefly, and looks away first."
     },

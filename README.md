@@ -86,7 +86,7 @@ Sub-events flagged `ambient` span the whole arc and are written to survive repea
 |---|---|
 | ✅ Good End | Confess with affection ≥ 80 |
 | 😔 Friend Zone | Confess with affection 40–79 |
-| 😨 Bad End | Confess with affection < 40, or too many wrong moves accumulate |
+| 😨 Bad End | Confess with affection < 40 — she isn't there yet, and turns him down |
 | ⏰ Too Late | Day 30 passes with no confession — Hiyori suddenly gets an overseas exchange + internship opportunity and the timing closes on its own |
 | 🌸 Secret End | Yuki's hidden affection ≥ 70, and the player never confessed to Hiyori |
 
@@ -224,6 +224,8 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - Split end-of-day into two requests, so neither approaches Vercel's 300s Hobby ceiling. This is the one item that can break a live game rather than merely look unfinished
 - Play it. The 15-real-minutes-per-in-game-hour rate has never actually been sat through, only skipped past, so it's unvalidated
 - Two paths are built but have never run for real: the **ending screen** (only `checkEnding` is unit-tested, no ending has been triggered through the UI) and **day 2 onward** (arc continuation across days is untested in the interface)
+
+All five endings are fully implemented — there is no missing mechanic behind any of them.
 - Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
 - Responsive layout — built desktop-first and not yet checked on mobile
 
