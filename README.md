@@ -220,7 +220,14 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - `randomized_details` is finally applied — it was in the data and typed on `GameEvent` but nothing ever used it, so events reached the player with raw `[activity]` placeholders
 - Ported into the personal site's playground section, behind a proxy route so `SERVICE_ROLE` and `GOOGLE_API_KEY` never leave this project (see Deployment). Verified running against a live engine, including that end-of-day's streamed progress survives the proxy hop rather than being buffered
 
+- A refresh mid-day no longer duplicates it. `startDay` discards unanswered beats before re-rolling, sparing answered ones and arc markers; previously a reload could cost up to nine affection in skip penalties for beats the player never saw
+- End of day can be retried after a failure, rather than stranding the player on a progress panel that never resolves
+- Confessing explains itself and asks first — it was a bare link, one click from permanently ending a thirty-day run
+- Chat messages carry the in-game time they were sent
+
 **Next up:**
+- **Retrieval quality** — measured against real chat messages and it doesn't hold up; see [Known problems with retrieval](#known-problems-with-retrieval) for the numbers and the shortlist of fixes
+- **Temporal context in prompts** — characters have no idea what day or time it is, and it shows in what they say
 - Split end-of-day into two requests, so neither approaches Vercel's 300s Hobby ceiling. This is the one item that can break a live game rather than merely look unfinished
 - Play it. The 15-real-minutes-per-in-game-hour rate has never actually been sat through, only skipped past, so it's unvalidated
 - Two paths are built but have never run for real: the **ending screen** (only `checkEnding` is unit-tested, no ending has been triggered through the UI) and **day 2 onward** (arc continuation across days is untested in the interface)
@@ -246,6 +253,41 @@ Playing writes real rows to Supabase — `game_state`, `messages`, `events_log`,
 Two pacing notes that look like bugs but aren't: a chat reply takes **~14s**, and free segments run at **one in-game hour per fifteen real minutes** — use *skip ahead* unless you're specifically testing the clock.
 
 To run it as it appears on the site instead, start this project on `:3000` and the personal site on `:3001` with `SOCIALSIM_API_URL=http://localhost:3000`.
+
+---
+
+## Known problems with retrieval
+
+Retrieval was tuned against long, topical queries like *"what does she like to do on weekends"*. Real chat isn't like that — it's short and conversational — and measuring against actual messages shows the settings don't hold up.
+
+Every message returns a full set of chunks, all scoring in a narrow band:
+
+| query | chunks returned | score range |
+|---|---|---|
+| `morning` | 5 of 5 | 0.532 – 0.558 |
+| `you okay?` | 5 of 5 | 0.533 – 0.581 |
+| `do you want to grab lunch` | 5 of 5 | 0.514 – 0.574 |
+
+A spread of ~0.04 between the best and worst hit means the ranking is close to arbitrary. `"morning"` retrieves diary entries about sleeplessness, succulents and cycling; `"you okay?"` retrieves a lab orientation. All of it is handed to the model under the heading **"RELEVANT MEMORY (things Hiyori knows)"**, so the prompt is mostly noise presented as fact.
+
+The 0.5 threshold isn't filtering — it admits 8–18 chunks per query. And the cliff is sharp: 0.55 admits 1–3, and 0.6 admits **nothing at all**. There's no threshold that keeps good matches and drops bad ones, because for short queries there aren't good matches to keep.
+
+Longer queries behave completely differently — *"has she ever been in a relationship before"* scores **0.716** with a 0.112 spread and returns exactly the right chunk. So the embedding and the corpus are fine; the problem is that a three-word message carries too little signal to discriminate.
+
+Worth trying, roughly in order:
+
+1. **Embed more than the bare message.** Including the last few turns, or the segment context, would give the query enough signal to separate. This is the change most likely to fix it outright.
+2. **Raise the threshold and accept empty results.** `buildPrompt` already handles this — it writes *"(Nothing specific comes to mind.)"* — and that is a far better prompt than five unrelated diary entries.
+3. **Separate the pools.** Diary entries are long first-person narratives and dominate every result; structured lore (`FOOD PREFERENCES`, `INTERESTS & HOBBIES`) rarely surfaces even when it's the relevant thing. Retrieving them separately, or weighting by `source_file`, would stop one crowding out the other.
+4. **Skip retrieval for greetings.** `"morning"` doesn't need memory, and giving it five chunks actively hurts.
+
+### Missing temporal context
+
+Separately: nothing in `buildPrompt` tells a character what day or time it is. It receives the persona, retrieved chunks, conversation history and relationship stage — no clock, no day number, no segment.
+
+The effect is visible in play. At 06:14 in-game, Hiyori replied *"It's barely seven"* — she was guessing, and had no way not to. She also can't reference yesterday, notice that it's late, or tell day 2 from day 25. Now that messages carry in-game timestamps this mismatch is on screen next to every line.
+
+The schedule and day number are already available where dialogue is generated, so this is a matter of adding them to the prompt rather than plumbing anything new.
 
 ---
 
