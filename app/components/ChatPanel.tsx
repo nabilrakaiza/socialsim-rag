@@ -9,6 +9,8 @@ export interface ChatLine {
   character: NPCCharacter;
   role: 'player' | 'npc';
   content: string;
+  /** In-game clock time when the line was sent, e.g. "12:34". */
+  at: string;
 }
 
 const NAMES: Record<NPCCharacter, string> = {
@@ -96,14 +98,20 @@ export const ChatPanel = memo(function ChatPanel({
               transition={{ duration: 0.2 }}
               className={line.role === 'player' ? 'flex justify-end' : 'flex justify-start'}
             >
-              <div
-                className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm leading-[1.7] ${
-                  line.role === 'player'
-                    ? 'rounded-br-sm bg-violet text-white'
-                    : 'rounded-bl-sm bg-surface text-ink ring-1 ring-line'
-                }`}
-              >
-                {line.content}
+              <div className={`flex max-w-[85%] flex-col ${line.role === 'player' ? 'items-end' : 'items-start'}`}>
+                <div
+                  className={`rounded-2xl px-4 py-2 text-sm leading-[1.7] ${
+                    line.role === 'player'
+                      ? 'rounded-br-sm bg-violet text-white'
+                      : 'rounded-bl-sm bg-surface text-ink ring-1 ring-line'
+                  }`}
+                >
+                  {line.content}
+                </div>
+                {/* In-game time, not wall-clock. Free segments burn real time at
+                    a compressed rate, so these are the only timestamps that
+                    match the schedule beside them. */}
+                <span className="mt-1 px-1 font-mono text-[0.65rem] text-muted/60">{line.at}</span>
               </div>
             </motion.div>
           ))}

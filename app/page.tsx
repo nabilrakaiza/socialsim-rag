@@ -7,7 +7,7 @@
 // Type-only imports from lib/ are erased at compile time, so no server code
 // and no credentials reach the client bundle.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DayPlan, EndDayResult, EndDayStage, ResolvedSegment } from '@/lib/orchestrator';
 import type { GameState } from '@/lib/supabase';
 import type { NPCCharacter } from '@/lib/gemma';
@@ -89,6 +89,7 @@ export default function Page() {
 
   // An arc's opening announcement gates the day's first segment, once.
   const [arcSeen, setArcSeen] = useState(false);
+  const [confessing, setConfessing] = useState(false);
   const [answered, setAnswered] = useState<Record<string, boolean>>({});
   const [savingAnswer, setSavingAnswer] = useState(false);
 
@@ -122,6 +123,18 @@ export default function Page() {
 
   const clock = useDayClock(plan?.schedule ?? null, finishDay);
   const { advance } = clock;
+
+  // send() is memoised, so it can't close over a value that changes several
+  // times a second — adding the clock to its deps would rebuild the callback,
+  // and re-render the chat, on every tick. A ref carries the live time instead.
+  //
+  // Written in an effect rather than during render: mutating a ref while
+  // rendering is what React's rules forbid, and a one-render lag on a clock
+  // that ticks every 250ms is not observable in a timestamp shown to the minute.
+  const clockRef = useRef(clock.inGameHour);
+  useEffect(() => {
+    clockRef.current = clock.inGameHour;
+  }, [clock.inGameHour]);
 
   // Resume on load — the session id is all the client keeps.
   useEffect(() => {
@@ -176,8 +189,9 @@ export default function Page() {
       // Captured now, so a reply is always filed against whoever it was sent
       // to even if the player switches tabs while waiting.
       const askedFor = character;
+      const sentAt = formatGameTime(clockRef.current);
 
-      setLines((prev) => [...prev, { id: `p-${stamp}`, character: askedFor, role: 'player', content: text }]);
+      setLines((prev) => [...prev, { id: `p-${stamp}`, character: askedFor, role: 'player', content: text, at: sentAt }]);
       setPendingReplies((prev) => [...prev, askedFor]);
       try {
         const { reply } = await api<{ reply: string }>('/api/chat', {
@@ -187,7 +201,12 @@ export default function Page() {
           relationshipStage: state.relationship_stage as RelationshipStage,
           playerMessage: text,
         });
-        setLines((prev) => [...prev, { id: `n-${stamp}`, character: askedFor, role: 'npc', content: reply }]);
+        // Stamped with the reply's own arrival time, not the question's — a
+        // reply lands 12-15s later, which is minutes of in-game time.
+        setLines((prev) => [
+          ...prev,
+          { id: `n-${stamp}`, character: askedFor, role: 'npc', content: reply, at: formatGameTime(clockRef.current) },
+        ]);
       } finally {
         // Removes one entry, not every match, so concurrent asks to the same
         // person can't clear each other's indicator.
@@ -301,15 +320,40 @@ export default function Page() {
         </div>
         {plan && !clock.done && (
           <button
-            onClick={confess}
-            className="text-xs text-muted underline-offset-4 hover:text-mint hover:underline"
+            onClick={() => setConfessing(true)}
+            className="font-mono text-xs text-muted transition-colors hover:text-mint"
           >
-            confess
+            tell her how you feel →
           </button>
         )}
       </header>
 
       {error && <p className="mt-4 font-mono text-sm text-red-400">{error}</p>}
+
+      {confessing && (
+        <div className="mt-6 rounded-[10px] border border-line bg-card p-6">
+          <span className="font-mono text-xs tracking-[0.12em] text-mint">// are you sure</span>
+          <p className="mt-3 leading-[1.7]">
+            Telling her how you feel ends the game here, on whatever she feels about you right now.
+            You can do it any day you like — but only once, and there&rsquo;s no going back.
+          </p>
+          <div className="mt-5 flex items-center gap-4">
+            <button
+              onClick={() => { setConfessing(false); void confess(); }}
+              disabled={loading}
+              className="rounded-[10px] bg-violet px-5 py-2 font-mono text-sm text-white transition-shadow hover:glow-violet disabled:opacity-40"
+            >
+              {loading ? 'Saying it…' : 'Say it →'}
+            </button>
+            <button
+              onClick={() => setConfessing(false)}
+              className="font-mono text-sm text-muted transition-colors hover:text-ink"
+            >
+              Not yet
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Calendar beside the action rather than above it, so the day stays
           visible while playing. Stacks on narrow screens, where a 560px column
@@ -356,6 +400,8 @@ export default function Page() {
                 recap={recap}
                 result={endResult}
                 progress={endProgress}
+                error={error}
+                onRetry={() => void finishDay()}
                 onContinue={() => setPlan(null)}
               />
             </div>

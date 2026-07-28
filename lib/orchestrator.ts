@@ -31,6 +31,7 @@ import {
   updateGameState,
   getAllEventLogs,
   getEventLogsForDay,
+  deleteEventLogsByIds,
   insertEventLog,
   updateEventLogAction,
   updateEventLogOutcome,
@@ -169,6 +170,34 @@ export async function startNewGame(): Promise<GameState> {
 // typed and immune to drift. See lib/supabase.ts's GameState.
 export async function startDay(sessionId: string): Promise<DayPlan> {
   const gameState = await getGameState(sessionId);
+
+  // Calling this twice for the same day used to double the day's beats: the
+  // client keeps its plan in memory, so a refresh lost it, asked for a new one,
+  // and the first set stayed behind as unanswered rows that collected skip
+  // penalties at end of day — the player losing affection for reloading a page.
+  //
+  // Clearing unanswered beats first makes a re-roll replace the abandoned day
+  // rather than stack on it. Two kinds of row are deliberately spared:
+  //
+  //   - answered beats, which are real choices the player already made
+  //   - arc-start markers, which are unanswered by nature and always will be.
+  //     Deleting those loses the arc entirely — reconstructArcState reads them
+  //     to know an arc is running and how far in it is, so a re-roll would
+  //     silently abandon a seven-day committee on day three and let an
+  //     unrelated arc start in its place.
+  const arcIdSet = new Set(
+    loadEvents().filter((event) => event.type === 'extended_event').map((event) => event.id)
+  );
+  const today = await getEventLogsForDay(sessionId, gameState.current_day);
+  const stale = today
+    .filter((row) => row.player_action === null && !arcIdSet.has(row.event_id))
+    .map((row) => row.id);
+
+  if (stale.length > 0) {
+    await deleteEventLogsByIds(stale);
+    console.log(`[startDay] day ${gameState.current_day} re-rolled, discarded ${stale.length} unanswered beats`);
+  }
+
   const allEventsLogs = await getAllEventLogs(sessionId);
 
   const arcState = reconstructArcState(allEventsLogs, gameState.current_day);

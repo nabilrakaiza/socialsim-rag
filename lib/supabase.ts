@@ -302,6 +302,21 @@ export interface EventLog {
 // when an event fires and needs its id straight away to hand to the client,
 // which passes it back with the player's response. A caller that can't
 // identify what it just wrote would have to guess.
+// Deletes specific rows by id. The caller decides which — see startDay, where
+// working out what's safe to discard needs events.json and so can't be done
+// from a query alone.
+export async function deleteEventLogsByIds(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+
+  const { data, error } = await supabase.from('events_log').delete().in('id', ids).select('id');
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data?.length ?? 0;
+}
+
 export async function insertEventLog(
   entry: Omit<EventLog, 'id' | 'created_at'>
 ): Promise<EventLog> {
