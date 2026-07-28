@@ -18,6 +18,8 @@ import { ChatPanel, type ChatLine } from './components/ChatPanel';
 import { SegmentStage } from './components/SegmentStage';
 import { DayEnd, type DayRecapEntry } from './components/DayEnd';
 import { EndingScreen } from './components/EndingScreen';
+import { ArcAnnouncement } from './components/ArcAnnouncement';
+import { ArcStatus } from './components/ArcStatus';
 
 const SESSION_KEY = 'socialsim-session-id';
 
@@ -85,6 +87,8 @@ export default function Page() {
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [pendingReplies, setPendingReplies] = useState<NPCCharacter[]>([]);
 
+  // An arc's opening announcement gates the day's first segment, once.
+  const [arcSeen, setArcSeen] = useState(false);
   const [answered, setAnswered] = useState<Record<string, boolean>>({});
   const [savingAnswer, setSavingAnswer] = useState(false);
 
@@ -157,6 +161,7 @@ export default function Page() {
         setEndProgress(null);
         setLines([]);
         setAnswered({});
+        setArcSeen(false);
         setPlan(await api<DayPlan>('/api/day/start', { sessionId }));
       } finally {
         setLoading(false);
@@ -284,7 +289,7 @@ export default function Page() {
     }));
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-8">
+    <main className="mx-auto max-w-5xl px-6 py-8">
       <header className="flex items-baseline justify-between">
         <div>
           <p className="font-mono text-xs tracking-[0.12em] text-violet">
@@ -304,13 +309,26 @@ export default function Page() {
         )}
       </header>
 
-      {plan && (
-        <div className="mt-6">
-          <ScheduleRail schedule={plan.schedule} currentIndex={clock.index} inGameHour={clock.inGameHour} />
-        </div>
-      )}
-
       {error && <p className="mt-4 font-mono text-sm text-red-400">{error}</p>}
+
+      {/* Calendar beside the action rather than above it, so the day stays
+          visible while playing. Stacks on narrow screens, where a 560px column
+          next to the chat would leave neither enough room. */}
+      <div className="mt-6 flex flex-col gap-8 md:flex-row">
+        {plan && (
+          <aside className="shrink-0 md:w-72">
+            <ScheduleRail schedule={plan.schedule} currentIndex={clock.index} inGameHour={clock.inGameHour} />
+            {plan.activeArc && (
+              <ArcStatus
+                arc={plan.activeArc.event}
+                startDay={plan.activeArc.startDay}
+                currentDay={plan.day}
+              />
+            )}
+          </aside>
+        )}
+
+        <div className="min-w-0 flex-1">
 
       {/* Deliberately NOT wrapped in AnimatePresence. The clock re-renders this
           subtree four times a second, and an AnimatePresence with mode="wait"
@@ -318,7 +336,6 @@ export default function Page() {
           never finishes fading in and sits permanently at partial opacity.
           A keyed motion.div still animates on mount, which is all that's wanted
           here: transitions between segments, not on every tick. */}
-      <div className="mt-8">
         <>
           {!plan && (
             <div key="idle">
@@ -344,7 +361,13 @@ export default function Page() {
             </div>
           )}
 
-          {plan && !clock.done && clock.segment?.type === 'free' && (
+          {plan && !clock.done && plan.startedArc && !arcSeen && (
+            <div key="arc-start">
+              <ArcAnnouncement arc={plan.startedArc} onContinue={() => setArcSeen(true)} />
+            </div>
+          )}
+
+          {plan && !clock.done && (!plan.startedArc || arcSeen) && clock.segment?.type === 'free' && (
             <div key={`free-${clock.index}`}>
               <div className="mb-3 flex items-center justify-between font-mono text-sm">
                 <span className="text-muted">
@@ -377,7 +400,7 @@ export default function Page() {
             </div>
           )}
 
-          {plan && !clock.done && clock.segment?.type === 'activity' && currentResolved && (
+          {plan && !clock.done && (!plan.startedArc || arcSeen) && clock.segment?.type === 'activity' && currentResolved && (
             <div key={`act-${clock.index}`}>
               <SegmentStage
                 resolved={currentResolved}
@@ -388,6 +411,7 @@ export default function Page() {
             </div>
           )}
         </>
+        </div>
       </div>
     </main>
   );

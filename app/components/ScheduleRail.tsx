@@ -15,10 +15,21 @@ const LABELS: Record<string, string> = {
   sleep_night: 'Winding down',
 };
 
-// The schedule is the day's scarcity, so it stays visible the whole time —
-// the player should always be able to see what's left rather than discovering
-// the day ended. Segments are shown proportionally to their real duration,
-// which makes an unusually long afternoon legible at a glance.
+// A day column, calendar style: blocks sized by real duration, a time axis
+// down the left, and a line marking now.
+//
+// Height is fixed for the whole 24h rather than fitted to content, so a block's
+// size means something — a four-hour afternoon looks four times a one-hour
+// lunch. That does spend a lot of the column on sleep, which is the honest
+// trade: the day genuinely is mostly sleep, and hiding that would make the
+// waking hours look more spacious than they are.
+const COLUMN_HEIGHT = 560;
+const HOURS_IN_DAY = 24;
+
+function topFor(hour: number) {
+  return (hour / HOURS_IN_DAY) * COLUMN_HEIGHT;
+}
+
 export function ScheduleRail({
   schedule,
   currentIndex,
@@ -28,59 +39,94 @@ export function ScheduleRail({
   currentIndex: number;
   inGameHour: number;
 }) {
-  const dayProgress = Math.min(inGameHour / 24, 1);
-
   return (
-    <div className="space-y-2">
-      <div className="relative h-2 overflow-hidden rounded-full bg-line">
-        <div className="absolute inset-0 flex">
-          {schedule.map((segment, i) => (
-            <div
-              key={segment.name}
-              style={{ width: `${(segment.durationHours / 24) * 100}%` }}
-              className={
-                segment.type === 'free'
-                  ? 'border-r border-canvas/40 bg-violet/30'
-                  : segment.type === 'activity'
-                    ? 'border-r border-canvas/40 bg-muted/25'
-                    : 'border-r border-canvas/40 bg-transparent'
-              }
-              title={`${LABELS[segment.name] ?? segment.name} · ${segment.type}`}
-              aria-hidden={i > 0 || undefined}
-            />
-          ))}
-        </div>
-        {/* Current position, not a fill bar — the day moves in jumps as well as
-            in real time, so a marker reads more honestly than a progress fill. */}
-        <motion.div
-          className="absolute top-0 h-full w-0.5 bg-violet"
-          animate={{ left: `${dayProgress * 100}%` }}
-          transition={{ type: 'tween', duration: 0.3, ease: 'easeOut' }}
-        />
+    <div className="flex gap-3">
+      {/* Time axis. Every three hours — hourly would crowd the column at this
+          scale and the exact gridline isn't what's being read. */}
+      <div className="relative w-10 shrink-0" style={{ height: COLUMN_HEIGHT }}>
+        {Array.from({ length: HOURS_IN_DAY / 3 + 1 }, (_, i) => i * 3).map((hour) => (
+          <span
+            key={hour}
+            className="absolute right-0 -translate-y-1/2 font-mono text-[0.65rem] text-muted/60"
+            style={{ top: topFor(hour) }}
+          >
+            {String(hour).padStart(2, '0')}:00
+          </span>
+        ))}
       </div>
 
-      <ol className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+      <div
+        className="relative flex-1 overflow-hidden rounded-[10px] border border-line bg-card/40"
+        style={{ height: COLUMN_HEIGHT }}
+      >
+        {Array.from({ length: HOURS_IN_DAY / 3 + 1 }, (_, i) => i * 3).map((hour) => (
+          <div
+            key={hour}
+            className="absolute inset-x-0 border-t border-line/40"
+            style={{ top: topFor(hour) }}
+            aria-hidden
+          />
+        ))}
+
         {schedule.map((segment, i) => {
+          const height = (segment.durationHours / HOURS_IN_DAY) * COLUMN_HEIGHT;
           const isCurrent = i === currentIndex;
           const isPast = i < currentIndex;
+
+          // Labels are dropped rather than clipped as blocks get short. A
+          // 20-minute get-ready is ~8px tall at this scale, and rendering a
+          // full label into it spilled over the block below — the previous
+          // version computed this and then ignored it. The tooltip still
+          // carries the detail at every size.
+          const showName = height >= 30;
+          const showTime = height >= 16;
+
           return (
-            <li
+            <div
               key={segment.name}
-              className={
-                isCurrent
-                  ? 'font-medium text-violet'
-                  : isPast
-                    ? 'text-muted/45 line-through decoration-muted/30'
-                    : segment.type === 'locked'
-                      ? 'text-muted/50'
-                      : ''
-              }
+              className={`absolute inset-x-1 overflow-hidden rounded border-l-2 px-2 transition-opacity ${
+                height >= 30 ? 'py-1' : 'py-0'
+              } ${
+                segment.type === 'free'
+                  ? 'border-l-mint bg-mint/10'
+                  : segment.type === 'activity'
+                    ? 'border-l-violet bg-violet/10'
+                    : 'border-l-muted/30 bg-transparent'
+              } ${isCurrent ? 'ring-1 ring-mint/50' : ''} ${isPast ? 'opacity-35' : ''}`}
+              style={{ top: topFor(segment.startHour), height: Math.max(height - 2, 12) }}
+              title={`${formatGameTime(segment.startHour)} · ${LABELS[segment.name] ?? segment.name}`}
             >
-              {formatGameTime(segment.startHour)} {LABELS[segment.name] ?? segment.name}
-            </li>
+              {showTime && (
+                <div className="flex items-baseline gap-2 leading-none">
+                  <span
+                    className={`font-mono text-[0.7rem] ${
+                      isCurrent ? 'font-medium text-mint' : 'text-muted'
+                    }`}
+                  >
+                    {formatGameTime(segment.startHour)}
+                  </span>
+                  {showName && (
+                    <span className={`truncate text-[0.75rem] ${isCurrent ? 'text-ink' : 'text-muted'}`}>
+                      {LABELS[segment.name] ?? segment.name}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           );
         })}
-      </ol>
+
+        {/* Now. A line rather than a fill, because the day advances in jumps as
+            well as in real time and a filled bar would imply steady progress. */}
+        <motion.div
+          className="pointer-events-none absolute inset-x-0 z-10 flex items-center"
+          animate={{ top: topFor(Math.min(inGameHour, HOURS_IN_DAY)) }}
+          transition={{ type: 'tween', duration: 0.3, ease: 'easeOut' }}
+        >
+          <span className="h-2 w-2 -translate-x-1/2 rounded-full bg-mint" />
+          <span className="h-px flex-1 bg-mint/70" />
+        </motion.div>
+      </div>
     </div>
   );
 }
