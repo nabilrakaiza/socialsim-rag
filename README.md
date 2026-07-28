@@ -92,6 +92,20 @@ Sub-events flagged `ambient` span the whole arc and are written to survive repea
 
 Confession is **never gated** by affection — the player can shoot their shot at any point, for better or worse.
 
+### Why the ending happened
+
+The ending itself is scripted prose, one of five. What follows it isn't.
+
+Thirty days of play generate a diary and a per-character knowledge base, and until now every word of it existed only to feed retrieval — the player never saw any of it. `lib/ending-reflection.ts` reads that record back:
+
+- **Her closing entry**, written the night it resolved, from her past entries and everything she came to notice about Adrian. The affection meter is hidden all game and the player is asked to read her behaviour instead; this is the one place she says it plainly.
+- **The archive** — every earlier entry, oldest first, collapsed behind a toggle. The evidence behind the closing entry.
+- **Yuki's epilogue**, only above `YUKI_REVEAL_FLOOR` (25) and never on the secret end, where she already said it out loud. Below that floor she genuinely didn't think about him much, and an epilogue would be inventing feelings the playthrough never earned.
+
+Two prose calls on the fast model, measured at **2.8s** together — the ending screen paints the scripted prose immediately and this fills in behind it.
+
+One content bug worth recording: `ENDING_FRAMING` originally used bare pronouns, and inside a Yuki-focused prompt *"she turned him down"* read as Yuki. The epilogue invented a rejection that never happened. Naming Hiyori explicitly in every framing string fixed it — a reminder that a prompt shared across two subjects has no pronoun context to fall back on.
+
 ---
 
 ## Tech Stack
@@ -224,13 +238,14 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - End of day can be retried after a failure, rather than stranding the player on a progress panel that never resolves
 - Confessing explains itself and asks first — it was a bare link, one click from permanently ending a thirty-day run
 - Chat messages carry the in-game time they were sent
+- The ending explains itself (`lib/ending-reflection.ts`) — the accumulated diary and knowledge chunks are finally read back to the player instead of only feeding retrieval. See [Why the ending happened](#why-the-ending-happened). Verified against a seeded end-state (`scripts/tmp-test-ending-reflection.ts`) and, for the first time, in the browser: the closing entry, the collapsible archive, and the conditional Yuki epilogue all render
 
 **Next up:**
 - **Retrieval quality** — measured against real chat messages and it doesn't hold up; see [Known problems with retrieval](#known-problems-with-retrieval) for the numbers and the shortlist of fixes
 - **Temporal context in prompts** — characters have no idea what day or time it is, and it shows in what they say
 - Split end-of-day into two requests, so neither approaches Vercel's 300s Hobby ceiling. This is the one item that can break a live game rather than merely look unfinished
 - Play it. The 15-real-minutes-per-in-game-hour rate has never actually been sat through, only skipped past, so it's unvalidated
-- Two paths are built but have never run for real: the **ending screen** (only `checkEnding` is unit-tested, no ending has been triggered through the UI) and **day 2 onward** (arc continuation across days is untested in the interface)
+- **Day 2 onward** has never run for real — arc continuation across days is untested in the interface. (The ending screen was in this list; it has now been driven in a browser against a seeded end-state.)
 
 All five endings are fully implemented — there is no missing mechanic behind any of them.
 - Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
