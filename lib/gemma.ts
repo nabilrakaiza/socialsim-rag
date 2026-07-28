@@ -543,3 +543,171 @@ export async function generateEventOutcome(context: EventOutcomeContext): Promis
 
   return parseEventOutcomeResult(text);
 }
+
+// ============================================================
+// Ending reflections.
+//
+// Both of these are prose in a character's own voice, which makes them the one
+// place the fast model is a better fit rather than a compromise. Flash-lite
+// was ruled out of batch work because it wrote first person where third person
+// was required — here first person is exactly what's wanted, and it runs in
+// about a second against Gemma's twenty. That matters at the ending, which is
+// the moment a player least wants to sit watching a spinner.
+// ============================================================
+
+const REFLECTION_MODELS = ['gemini-3.1-flash-lite', 'gemma-4-26b-a4b-it'] as const;
+
+export type EndingKind = 'good_end' | 'friend_zone_end' | 'bad_end' | 'too_late_end' | 'secret_end';
+
+export interface FinalReflectionContext {
+  ending: EndingKind;
+  day: number;
+  tierLabel: string;
+  relationshipStage: RelationshipStage;
+  /** Her own entries across the run, oldest first. */
+  pastEntries: string[];
+  /** What she came to know about Adrian, from her knowledge base. */
+  impressions: string[];
+}
+
+// Being rejected and then reading a long post-mortem about why is punishing.
+// The friend-zone ending gets the fullest treatment on purpose: being liked
+// but not that way is the outcome most worth understanding.
+const REFLECTION_LENGTH: Record<EndingKind, string> = {
+  good_end: '200-280 words',
+  friend_zone_end: '220-300 words',
+  bad_end: '90-130 words',
+  too_late_end: '200-280 words',
+  secret_end: '180-240 words',
+};
+
+// Every clause names Hiyori explicitly rather than using a pronoun. These
+// strings are shared with Yuki's epilogue, and in a prompt that is otherwise
+// entirely about Yuki, "she turned him down" was read as Yuki doing the
+// turning down — inventing a rejection that never happened.
+const ENDING_FRAMING: Record<EndingKind, string> = {
+  good_end: 'Adrian told Hiyori how he felt today, and Hiyori said yes to him.',
+  friend_zone_end:
+    'Adrian told Hiyori how he felt today. Hiyori turned him down — kindly, and Hiyori meant the kindness, but Hiyori turned him down.',
+  bad_end:
+    'Adrian told Hiyori how he felt today, long before Hiyori was anywhere near feeling the same. It was uncomfortable, and Hiyori said no to him.',
+  too_late_end:
+    'Thirty days passed and Adrian never said anything to Hiyori. Hiyori has just found out she is leaving on an overseas exchange, and the timing has closed the door on its own.',
+  secret_end:
+    'Adrian never said anything to Hiyori. Hiyori has heard, or worked out, that Adrian and Yuki have found their way to each other.',
+};
+
+function buildFinalReflectionPrompt(context: FinalReflectionContext): string {
+  const entries = context.pastEntries.length > 0
+    ? context.pastEntries.map((entry, i) => `${i + 1}. ${entry}`).join('\n\n')
+    : '(She kept no diary over these weeks.)';
+
+  const impressions = context.impressions.length > 0
+    ? context.impressions.map((line) => `- ${line}`).join('\n')
+    : '(Nothing much registered.)';
+
+  return `You are writing the last diary entry Hiyori Mizuki writes about Adrian, on the night everything resolved. Same private journal as her earlier entries, same voice.
+
+Voice guidelines:
+- Casual, personal, sometimes mid-thought
+- She trails off, backtracks, changes subject
+- She mentions mundane things alongside significant ones
+- She does NOT dramatically declare feelings — the more she means something, the more she downplays it
+- Dry humour when she's uncomfortable
+- Self-aware, but not always honest with herself
+
+WHAT HAPPENED TODAY: ${ENDING_FRAMING[context.ending]}
+
+HOW SHE HAD COME TO FEEL BY THEN: ${context.tierLabel}
+Relationship stage reached: ${context.relationshipStage}
+This is day ${context.day} of 30.
+
+HER OWN DIARY, THESE PAST WEEKS:
+${entries}
+
+WHAT SHE HAD NOTICED ABOUT HIM ALONG THE WAY:
+${impressions}
+
+Write that final entry, ${REFLECTION_LENGTH[context.ending]}. This one is doing a particular job: a reader should finish it understanding why it went the way it did. So let her look back — reference specific things above, things he actually did or failed to do, and let the reasons show through what she chooses to dwell on. Not a summary and not a verdict; she is thinking on paper, and the explanation is a side effect of that.
+
+Do not start with "Dear Diary". Do not mention scores, meters, points or game mechanics. Tag the entry with: [Day ${context.day} — In-game]
+
+Respond with ONLY a single JSON object — no markdown code fences, no extra commentary:
+{ "entry": "<the full diary entry, including the [Day ${context.day} — In-game] tag>" }`;
+}
+
+export async function generateFinalReflection(context: FinalReflectionContext): Promise<DiaryEntryResult> {
+  const text = await generateWithFallback(REFLECTION_MODELS, buildFinalReflectionPrompt(context));
+  return parseDiaryResult(text);
+}
+
+export interface YukiEpilogueContext {
+  /** Her hidden meter, 0-100. Decides whether there is anything to tell. */
+  yukiAffection: number;
+  /** What Yuki came to know about Adrian this run. */
+  impressions: string[];
+  /** So the epilogue knows what it is reacting to. */
+  ending: EndingKind;
+}
+
+function buildYukiEpiloguePrompt(context: YukiEpilogueContext): string {
+  const impressions = context.impressions.length > 0
+    ? context.impressions.map((line) => `- ${line}`).join('\n')
+    : '(They barely crossed paths.)';
+
+  // Restraint is the character, not a limitation of the format: she has never
+  // said any of this out loud and mostly talked herself out of it years ago.
+  const weight = context.yukiAffection >= 50
+    ? 'She had come to feel a great deal, and never found a moment she trusted enough to say it.'
+    : 'Something had started to stir, quietly, and had not gone very far before it was overtaken.';
+
+  return `You are writing a short closing epilogue for Yuki, a side character in a narrative dating simulation, revealing what she never said out loud.
+
+WHO SHE IS: Composed, thoughtful, a little guarded. Feels things deeply but processes privately. Reads people emotionally rather than analytically. Dry, understated humour once comfortable. Has had quiet, unspoken feelings for Adrian since secondary school that she mostly talked herself out of pursuing. Loyal, dependable, shows up without being asked. Would never confess unless his own attention made it surface — and it did not.
+
+HOW FAR IT HAD GOT: ${weight}
+
+WHAT SHE NOTICED ABOUT HIM OVER THESE WEEKS:
+${impressions}
+
+HOW IT ENDED FOR HIM, WITH HIYORI — NOT WITH YUKI: ${ENDING_FRAMING[context.ending]}
+
+Yuki was not part of that. Nothing was ever said between Adrian and Yuki, in either direction: she did not confess, he did not approach her, and she has neither accepted nor refused anything. Do not write her as having done any of those.
+
+Write ${context.yukiAffection >= 50 ? '110-160' : '60-90'} words, third person, present or near-past tense. This is the reader learning something the player never got told. Keep her restraint intact — she does not weep, does not resent anyone, and would be mortified to be caught feeling this openly. Understatement will land harder than anguish. Reference specific things above where you can.
+
+Do not mention scores, meters or game mechanics. Do not have her confess, and do not resolve it — the point is that it stays unsaid.
+
+Respond with ONLY a single JSON object — no markdown code fences, no extra commentary:
+{ "epilogue": "<the closing passage>" }`;
+}
+
+export interface YukiEpilogueResult {
+  epilogue: string;
+}
+
+function parseYukiEpilogue(rawText: string): YukiEpilogueResult {
+  const cleaned = rawText
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new Error(`Model response was not valid JSON: ${rawText}`);
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || typeof (parsed as { epilogue: unknown }).epilogue !== 'string') {
+    throw new Error(`Model response did not match the expected shape: ${rawText}`);
+  }
+
+  return { epilogue: (parsed as { epilogue: string }).epilogue };
+}
+
+export async function generateYukiEpilogue(context: YukiEpilogueContext): Promise<YukiEpilogueResult> {
+  const text = await generateWithFallback(REFLECTION_MODELS, buildYukiEpiloguePrompt(context));
+  return parseYukiEpilogue(text);
+}

@@ -251,6 +251,45 @@ export async function getLastDiaryEntries(sessionId: string, limit: number = 2):
   return data;
 }
 
+// Oldest first, unlike getLastDiaryEntries — this is for reading the whole
+// run back at the end, where chronological order is the point.
+export async function getDiaryArchive(sessionId: string): Promise<DiaryEntry[]> {
+  const { data, error } = await supabase
+    .from('diary_entries')
+    .select('*')
+    .eq('session_id', sessionId)
+    .order('day', { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+// A character's accumulated memory of this playthrough, fetched directly
+// rather than by similarity. Every retrieval path so far goes through an
+// embedding, but the ending wants the whole record, not the parts that match
+// a query.
+export async function getDynamicChunks(
+  sessionId: string,
+  character: LoreChunk['character']
+): Promise<{ content: string; source_file: string }[]> {
+  const { data, error } = await supabase
+    .from('lore_chunks')
+    .select('content, source_file')
+    .eq('session_id', sessionId)
+    .eq('character', character)
+    .eq('is_static', false)
+    .order('source_file', { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
 // event_id is nullable — only set when trigger_type is 'event'.
 export async function insertDiaryEntry(
   entry: Omit<DiaryEntry, 'id' | 'created_at'>

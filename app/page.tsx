@@ -264,6 +264,7 @@ export default function Page() {
       <main className="mx-auto max-w-3xl px-6">
         <EndingScreen
           endingId={state.ending_id}
+          sessionId={state.session_id}
           onRestart={() => {
             localStorage.removeItem(SESSION_KEY);
             setSessionId(null);
