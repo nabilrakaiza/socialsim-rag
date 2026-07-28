@@ -1,9 +1,8 @@
 // Throwaway script to verify the is_static/session_id scoping added to
 // match_lore_chunks/match_lore_multi_character actually filters correctly.
-// Calls the RPCs directly via supabase-js (not through lib/supabase.ts,
-// which hasn't been updated to pass sessionId through yet) so this is a
-// clean test of the migration itself. Inserts one temporary dynamic
-// chunk, cleans it up after.
+// Calls the RPCs directly via supabase-js rather than through
+// lib/supabase.ts, so it tests the migration itself rather than the wrapper
+// around it. Inserts one temporary dynamic chunk, cleans it up after.
 
 import 'dotenv/config';
 

@@ -218,12 +218,32 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - The playable interface — in-game clock, the schedule as a proportional rail with the current segment marked, chat panel, event prompts, day-end recap and ending screens. `useDayClock` implements the real-time design: only `free` segments consume real time, sleep is skipped past, and activity segments are untimed because a countdown on a narrative beat pushes the player to answer badly rather than think
 - Restyled to match the personal site's design system (see below), so it reads as native when embedded in that site's playground section
 - `randomized_details` is finally applied — it was in the data and typed on `GameEvent` but nothing ever used it, so events reached the player with raw `[activity]` placeholders
+- Ported into the personal site's playground section, behind a proxy route so `SERVICE_ROLE` and `GOOGLE_API_KEY` never leave this project (see Deployment). Verified running against a live engine, including that end-of-day's streamed progress survives the proxy hop rather than being buffered
 
 **Next up:**
-- Port the interface into the personal site's playground section, behind a proxy route so `SERVICE_ROLE` and `GOOGLE_API_KEY` never leave this project (see Deployment below)
-- Split end-of-day into two requests, so neither approaches Vercel's 300s Hobby ceiling
+- Split end-of-day into two requests, so neither approaches Vercel's 300s Hobby ceiling. This is the one item that can break a live game rather than merely look unfinished
+- Play it. The 15-real-minutes-per-in-game-hour rate has never actually been sat through, only skipped past, so it's unvalidated
+- Two paths are built but have never run for real: the **ending screen** (only `checkEnding` is unit-tested, no ending has been triggered through the UI) and **day 2 onward** (arc continuation across days is untested in the interface)
 - Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
 - Responsive layout — built desktop-first and not yet checked on mobile
+
+---
+
+## Running locally
+
+Needs `SUPABASE_URL`, `SERVICE_ROLE` and `GOOGLE_API_KEY` in `.env`.
+
+```bash
+npm run dev            # the game, standalone, on :3000
+npm run ingest         # re-embed lore/ into lore_chunks (idempotent)
+npm run typecheck
+```
+
+Playing writes real rows to Supabase — `game_state`, `messages`, `events_log`, and per-session `lore_chunks`. They're scoped by `session_id`, so clearing test playthroughs never touches the 71 static lore rows (`is_static = true`).
+
+Two pacing notes that look like bugs but aren't: a chat reply takes **~14s**, and free segments run at **one in-game hour per fifteen real minutes** — use *skip ahead* unless you're specifically testing the clock.
+
+To run it as it appears on the site instead, start this project on `:3000` and the personal site on `:3001` with `SOCIALSIM_API_URL=http://localhost:3000`.
 
 ---
 

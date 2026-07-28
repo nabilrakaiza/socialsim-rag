@@ -163,35 +163,6 @@ export async function startNewGame(): Promise<GameState> {
   return insertGameState(crypto.randomUUID());
 }
 
-// HINT: rough sequence —
-//
-// 1. getGameState(sessionId) + getAllEventLogs(sessionId), then
-//    reconstructArcState(logs, gameState.current_day) above.
-//
-// 2. If arcState.activeArc is null, call checkExtendedEventTrigger with
-//    the game state's stage/affection/yukiAffection and
-//    arcState.usedExtendedEventIds. If it returns an arc, that arc starts
-//    TODAY: insertEventLog a row for it (event_id: arc.id, day_triggered:
-//    current_day, player_action: null, affection_delta: 0) and build an
-//    ActiveExtendedEvent for it with startDay = current_day and an empty
-//    firedSubEventIds. Note the arc's own row is a marker that the arc
-//    began — it isn't a beat the player responds to, so it stays
-//    unanswered forever and must be excluded from scoring in endDay.
-//
-// 3. generateDailySchedule() for the day's 8 segments.
-//
-// 4. For each of ACTIVITY_SEGMENTS in order: if an arc is active call
-//    resolveActivitySegmentDuringArc, else resolveActivitySegment. Feed
-//    each fired sub-event's id back into the ActiveExtendedEvent's
-//    firedSubEventIds as you go — otherwise the force-out and final-day
-//    checks can fire the same beat three times in one day.
-//
-// 5. Every fired event/sub-event gets an insertEventLog row with
-//    player_action null. It returns the inserted row, so use its .id as
-//    the ResolvedSegment's eventLogId — that's the handle the client
-//    passes back to recordEventResponse.
-//
-// 6. Return the DayPlan.
 // The stage is derived from affection rather than read off
 // game_state.relationship_stage: that column is plain text with no
 // constraint and is denormalized anyway, so deriving it is both correctly

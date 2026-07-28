@@ -1,6 +1,6 @@
 // Throwaway script to exercise sendPlayerMessage end-to-end against the
 // live DB + Gemini API. Not part of the real pipeline — safe to delete
-// once the game loop calls this for real. Sends two turns in the same
+// now that the orchestrator drives this. Sends two turns in the same
 // session/day to confirm the second turn's history actually includes
 // the first (the bug we just fixed), and that a Yuki message inserted
 // separately doesn't leak into Hiyori's history (the character-filter fix).

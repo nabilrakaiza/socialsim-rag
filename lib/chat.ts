@@ -12,8 +12,7 @@
 // batch eval's job, not per-message (see lib/gemma.ts's header for
 // why affection scoring is deliberately deferred).
 //
-// Does NOT enforce the chat-time budget or any action economy —
-// that's the caller's (future schedule/game-loop orchestrator's) job,
+// Does NOT enforce the day's time limits — that's lib/orchestrator.ts's job,
 // same boundary reasoning as batch-eval.ts's day-advancement note.
 // ============================================================
 

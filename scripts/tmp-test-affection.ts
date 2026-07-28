@@ -1,6 +1,6 @@
 // Throwaway script to check generateAffectionDelta against the live API
 // with a couple of contrasting conversations. Not part of the real
-// pipeline — safe to delete once the batch-eval orchestrator exists.
+// pipeline — safe to delete; runEndOfDayBatchEval now covers this path.
 
 import 'dotenv/config';
 

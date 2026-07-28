@@ -1,6 +1,6 @@
 // Throwaway script to exercise runEndOfDayBatchEval end-to-end against the
 // live DB + Gemini API. Not part of the real pipeline — safe to delete once
-// the game loop calls this for real. Inserts/cleans up its own rows under a
+// now that the orchestrator drives this. Inserts/cleans up its own rows under a
 // fixed test session_id.
 //
 // No prior diary entries exist for this session, so the periodic trigger

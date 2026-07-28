@@ -14,9 +14,9 @@
 // touches events_log and keeps one job: score the day's conversation,
 // write the affection/knowledge/diary results.
 //
-// Day/action-point advancement is deliberately NOT this function's
-// job — it evaluates the day that already happened, it doesn't
-// decide when the next one starts. That's the caller's call.
+// Advancing the day is deliberately NOT this function's job — it evaluates
+// the day that already happened, it doesn't decide when the next one starts.
+// lib/orchestrator.ts's endDay owns that, and is the only place it happens.
 //
 // The 3 knowledge-update chains and 2 affection-delta calls below
 // are independent of each other, so they run concurrently via

@@ -1,7 +1,7 @@
 // Throwaway script to exercise the new game_state/messages/diary_entries
 // helpers against the live DB — not part of the real game loop. Safe to
-// delete once the batch-eval orchestrator exists and exercises these for
-// real. Inserts/cleans up its own rows under a fixed test session_id.
+// delete; the orchestrator and batch eval exercise these for real now.
+// Inserts/cleans up its own rows under a fixed test session_id.
 
 import 'dotenv/config';
 

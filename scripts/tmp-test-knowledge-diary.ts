@@ -1,6 +1,6 @@
 // Throwaway script to check generateKnowledgeUpdate and generateDiaryEntry
 // against the live API. Not part of the real pipeline — safe to delete
-// once the batch-eval orchestrator exists and exercises these for real.
+// now that runEndOfDayBatchEval exercises both for real.
 
 import 'dotenv/config';
 
