@@ -281,7 +281,12 @@ export async function getDynamicChunks(
     .eq('session_id', sessionId)
     .eq('character', character)
     .eq('is_static', false)
-    .order('source_file', { ascending: true });
+    // Chronological, so the ending reads her impressions in the order she
+    // formed them. Not by source_file: that's `dynamic-day-N`, and sorting
+    // text puts day 10 before day 2. chunk_index breaks ties within a day —
+    // the knowledge update (0) before the diary entry (2).
+    .order('created_at', { ascending: true })
+    .order('chunk_index', { ascending: true });
 
   if (error) {
     throw new Error(error.message);

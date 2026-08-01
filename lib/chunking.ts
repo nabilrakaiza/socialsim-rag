@@ -56,16 +56,19 @@ export function chunkLoreFile(filePath: string, rawText: string): LoreChunk[] {
     return 'events';
   }
 
-  // strip any directory prefix so getCharacter only ever sees the filename
+  // Strip any directory prefix. Everything below dispatches on and stores this
+  // rather than filePath: an absolute path makes source_file machine-specific,
+  // which breaks anything that compares against it (see eval/retrieval-golden.json),
+  // and lets a parent directory name leak into the "diary"/character matching.
   const pathParts = filePath.split("/");
   const filename = pathParts[pathParts.length - 1];
 
-  if (filePath.endsWith(".json")){
+  if (filename.endsWith(".json")){
     const rawChunks = chunkEvents(rawText);
     const loreChunks: LoreChunk[] = rawChunks.map((chunk, index) => ({
         ...chunk,
         character: getCharacter(filename),
-        source_file: filePath,
+        source_file: filename,
         chunk_index: index,
         is_static: true
     }))
@@ -73,12 +76,12 @@ export function chunkLoreFile(filePath: string, rawText: string): LoreChunk[] {
     return loreChunks
   }
 
-  else if (filePath.includes("diary")){
+  else if (filename.includes("diary")){
     const rawChunks = chunkDiary(rawText);
     const loreChunks: LoreChunk[] = rawChunks.map((chunk, index) => ({
         ...chunk,
         character: getCharacter(filename),
-        source_file: filePath,
+        source_file: filename,
         chunk_index: index,
         is_static: true
     }))
@@ -91,7 +94,7 @@ export function chunkLoreFile(filePath: string, rawText: string): LoreChunk[] {
     const loreChunks: LoreChunk[] = rawChunks.map((chunk, index) => ({
         ...chunk,
         character: getCharacter(filename),
-        source_file: filePath,
+        source_file: filename,
         chunk_index: index,
         is_static: true
     }))

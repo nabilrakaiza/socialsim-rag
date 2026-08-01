@@ -1,0 +1,219 @@
+{
+  "_readme": [
+    "Hand-labelled retrieval cases. This file is the ground truth — the metrics in",
+    "scripts/eval-retrieval.ts are meaningless without it.",
+    "",
+    "Each case is: given this query, which chunk SHOULD win?",
+    "",
+    "  id        short slug, used in the output table",
+    "  query     what the player would actually type — keep it realistic, not tidy",
+    "  character which NPC's pool to search ('hiyori' | 'shiori' | 'yuki')",
+    "  expect    labels for the chunk(s) that should be retrieved. EMPTY ARRAY is a",
+    "            valid, important answer — see the negative cases below",
+    "  note      why you labelled it this way; future-you will want this",
+    "",
+    "A label identifies a chunk by { file, contains } rather than by id or",
+    "chunk_index, because re-ingesting deletes and reinserts every static row —",
+    "ids change, and chunk_index shifts the moment you re-chunk a file.",
+    "'file' is the bare filename: lore_chunks.source_file stores the basename, not",
+    "a path, so these labels stay valid on any machine and on Vercel.",
+    "'contains' should be a distinctive substring; the section heading is usually",
+    "the most stable choice.",
+    "",
+    "The set is deliberately split into four groups, and the split is the point:",
+    "",
+    "  long/topical positives   already work — the regression net. If a change",
+    "                           breaks these, the change is wrong.",
+    "  short positives          the failing ones. Same information need as a long",
+    "                           query, phrased the way a player actually types.",
+    "  negatives                expect NOTHING. The only cases that can reward",
+    "                           'retrieve less' — every metric that rewards finding",
+    "                           things punishes you for correctly finding nothing.",
+    "  multi-expect             more than one chunk is legitimately right.",
+    "",
+    "Several short positives are PAIRED with a long one against the same target",
+    "chunk (food-direct/lunch-invite, hobbies-direct/cycling-invite,",
+    "family-direct/brother-casual). The gap within a pair isolates query length",
+    "from everything else — same corpus, same answer, only the phrasing differs."
+  ],
+
+  "cases": [
+    {
+      "id": "past-relationship",
+      "query": "has she ever been in a relationship before",
+      "character": "hiyori",
+      "expect": [{ "file": "hiyori_backstory.txt", "contains": "HIYORI PAST RELATIONSHIPS" }],
+      "note": "The long-query control: measured at 0.702 top with a 0.102 spread. Keep it — if a change breaks this, the change is wrong."
+    },
+    {
+      "id": "food-direct",
+      "query": "what kind of food does she like",
+      "character": "hiyori",
+      "expect": [{ "file": "hiyori_interests.txt", "contains": "FOOD PREFERENCES" }],
+      "note": "Long half of the food pair. Scores 0.783 with a 0.160 spread — the best-behaved case in the set."
+    },
+    {
+      "id": "family-direct",
+      "query": "does she have any brothers or sisters",
+      "character": "hiyori",
+      "expect": [{ "file": "hiyori_backstory.txt", "contains": "HIYORI FAMILY" }],
+      "note": "Long half of the family pair. Ren, 16, secondary school."
+    },
+    {
+      "id": "hobbies-direct",
+      "query": "what does she like to do in her free time",
+      "character": "hiyori",
+      "expect": [{ "file": "hiyori_interests.txt", "contains": "INTERESTS & HOBBIES" }],
+      "note": "Long half of the hobbies pair. This is the query the original retrieval was tuned against, so it should be near best-case."
+    },
+    {
+      "id": "annoyances-direct",
+      "query": "what kind of behaviour puts her off",
+      "character": "hiyori",
+      "expect": [{ "file": "hiyori_interests.txt", "contains": "WHAT ANNOYS OR PUTS HER OFF" }],
+      "note": "Long half of the lateness pair."
+    },
+    {
+      "id": "studies-direct",
+      "query": "what is she studying at university",
+      "character": "hiyori",
+      "expect": [
+        { "file": "hiyori_backstory.txt", "contains": "Major: Life Sciences" },
+        { "file": "hiyori_backstory.txt", "contains": "HIYORI ACADEMIC BACKGROUND" }
+      ],
+      "note": "Two chunks legitimately answer this — the stats header states the major, the academic section explains why she chose it. Either at rank 1 is correct."
+    },
+    {
+      "id": "yuki-on-hiyori",
+      "query": "what do you know about Hiyori",
+      "character": "yuki",
+      "expect": [{ "file": "yuki_knowledge.txt", "contains": "WHAT YUKI KNOWS ABOUT HIYORI" }],
+      "note": "Non-Hiyori pool. Worth having: all the tuning so far has been against Hiyori's corpus, and Yuki's is a third the size, which changes how much competition a chunk faces."
+    },
+    {
+      "id": "shiori-advice",
+      "query": "how do you think I should approach her about this",
+      "character": "shiori",
+      "expect": [{ "file": "shiori_knowledge.txt", "contains": "SHIORI'S ADVICE STYLE" }],
+      "note": "Shiori's pool. Advice-seeking is most of what the player actually says to her, so this is the representative query for that character."
+    },
+
+    {
+      "id": "lunch-invite",
+      "query": "do you want to grab lunch",
+      "character": "hiyori",
+      "expect": [{ "file": "hiyori_interests.txt", "contains": "FOOD PREFERENCES" }],
+      "note": "SHORT half of the food pair. Same target as food-direct, which ranks it 1st at 0.783; this ranks it 3rd at 0.574. Phrasing alone accounts for the whole difference — this pair is the clearest statement of the problem in the set."
+    },
+    {
+      "id": "cycling-invite",
+      "query": "free for a ride this weekend?",
+      "character": "hiyori",
+      "expect": [{ "file": "hiyori_interests.txt", "contains": "INTERESTS & HOBBIES" }],
+      "note": "SHORT half of the hobbies pair. Cycling is listed first under hobbies and 'weekend rides' is nearly verbatim, so this is a case where keyword matching should beat embedding — a good test for hybrid search (C1)."
+    },
+    {
+      "id": "brother-casual",
+      "query": "how's Ren doing",
+      "character": "hiyori",
+      "expect": [{ "file": "hiyori_backstory.txt", "contains": "HIYORI FAMILY" }],
+      "note": "SHORT half of the family pair. A proper noun that appears exactly once in the corpus — if vector search can't find this, keyword search trivially can."
+    },
+    {
+      "id": "apology-late",
+      "query": "sorry i'm late",
+      "character": "hiyori",
+      "expect": [{ "file": "hiyori_interests.txt", "contains": "WHAT ANNOYS OR PUTS HER OFF" }],
+      "note": "SHORT half of the lateness pair. Three words, and getting it right genuinely changes the reply — lateness is listed as a deal-breaker, so the wrong retrieval here produces a character error, not just a bland line."
+    },
+    {
+      "id": "durian",
+      "query": "durian?",
+      "character": "hiyori",
+      "expect": [{ "file": "hiyori_interests.txt", "contains": "FOOD PREFERENCES" }],
+      "note": "One word. The hardest positive in the set and the most unambiguous — durian appears once in the corpus, under Dislikes. If anything should be retrievable from a single token, it's this."
+    },
+    {
+      "id": "noticed-tired",
+      "query": "you look tired, long day?",
+      "character": "hiyori",
+      "expect": [{ "file": "hiyori_interests.txt", "contains": "THINGS SHE WANTS BUT WON'T SAY" }],
+      "note": "Short, and the label is a judgement call: the chunk says she wants someone who notices when she's tired without her saying so. Arguably PERSONALITY also fits. Labelled this way because it's the chunk that would actually change the reply."
+    },
+
+    {
+      "id": "greeting-morning",
+      "query": "morning",
+      "character": "hiyori",
+      "expect": [],
+      "note": "NEGATIVE. Returns 5 chunks at 0.532-0.558 — sleeplessness, succulents, cycling. A greeting needs no memory, and five wrong chunks under 'things Hiyori knows' is worse than none."
+    },
+    {
+      "id": "checking-in",
+      "query": "you okay?",
+      "character": "hiyori",
+      "expect": [],
+      "note": "NEGATIVE, and deliberately arguable — you could label PERSONALITY here instead. Kept as a negative because two words carry no information need; whichever way you decide, it sets the rule for every short query in the set."
+    },
+    {
+      "id": "acknowledgement",
+      "query": "haha yeah fair enough",
+      "character": "hiyori",
+      "expect": [],
+      "note": "NEGATIVE. Pure conversational filler — there is no fact that would improve this reply."
+    },
+    {
+      "id": "signoff",
+      "query": "see you tomorrow!",
+      "character": "hiyori",
+      "expect": [],
+      "note": "NEGATIVE. Watch this one: it's temporally loaded, so once day/time reaches the prompt (D1) the right behaviour is still no retrieval — the clock isn't a chunk."
+    },
+    {
+      "id": "thanks",
+      "query": "thanks!",
+      "character": "yuki",
+      "expect": [],
+      "note": "NEGATIVE on a smaller pool. Yuki's corpus is 7 chunks, so a threshold that cleans Hiyori's 24 may behave differently here — worth having a negative outside the main pool."
+    },
+    {
+      "id": "vague-agreement",
+      "query": "sure, sounds good",
+      "character": "shiori",
+      "expect": [],
+      "note": "NEGATIVE on Shiori's pool, for the same reason as thanks."
+    },
+
+    {
+      "id": "marcus-multi",
+      "query": "tell me about her ex",
+      "character": "hiyori",
+      "expect": [
+        { "file": "hiyori_backstory.txt", "contains": "HIYORI PAST RELATIONSHIPS" },
+        { "file": "hiyori_diary.txt", "contains": "The Marcus thing crossed my mind" }
+      ],
+      "note": "MULTI. The backstory states the facts; the diary entry is her actually feeling about it. Both are right, and which one wins should change the tone of the reply rather than its accuracy."
+    },
+    {
+      "id": "cycling-multi",
+      "query": "is she into cycling",
+      "character": "hiyori",
+      "expect": [
+        { "file": "hiyori_interests.txt", "contains": "INTERESTS & HOBBIES" },
+        { "file": "hiyori_backstory.txt", "contains": "HIYORI UNIVERSITY LIFE" },
+        { "file": "hiyori_diary.txt", "contains": "Cycling club Saturday ride" }
+      ],
+      "note": "MULTI across all three file types — structured lore, backstory, diary. Useful for C3 (pool separation): if the diary chunk consistently beats the two structured ones, that's the crowding-out problem measured rather than asserted."
+    },
+    {
+      "id": "shiori-knows-past",
+      "query": "does she ever talk to you about her past relationships",
+      "character": "shiori",
+      "expect": [
+        { "file": "shiori_knowledge.txt", "contains": "WHAT SHIORI KNOWS ABOUT HIYORI" },
+        { "file": "shiori_knowledge.txt", "contains": "WHAT SHIORI DOES NOT KNOW" }
+      ],
+      "note": "MULTI, and the second label matters as much as the first — what Shiori does NOT know is what stops her inventing an answer."
+    }
+  ]
+}

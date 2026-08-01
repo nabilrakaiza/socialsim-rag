@@ -238,10 +238,12 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - End of day can be retried after a failure, rather than stranding the player on a progress panel that never resolves
 - Confessing explains itself and asks first — it was a bare link, one click from permanently ending a thirty-day run
 - Chat messages carry the in-game time they were sent
+- Retrieval evaluation harness (`npm run eval-retrieval`) — 23 hand-labelled cases scored on hit rate, MRR, clean negatives and similarity spread, with a saved baseline and per-run deltas. Labels are validated against the live corpus before scoring, since a label matching nothing scores identically to a retrieval failure
+- `lore_chunks.source_file` stores the bare filename instead of an absolute path, so anything comparing against it works on any machine and on Vercel
 - The ending explains itself (`lib/ending-reflection.ts`) — the accumulated diary and knowledge chunks are finally read back to the player instead of only feeding retrieval. See [Why the ending happened](#why-the-ending-happened). Verified against a seeded end-state (`scripts/tmp-test-ending-reflection.ts`) and, for the first time, in the browser: the closing entry, the collapsible archive, and the conditional Yuki epilogue all render
 
 **Next up:**
-- **Retrieval quality** — measured against real chat messages and it doesn't hold up; see [Known problems with retrieval](#known-problems-with-retrieval) for the numbers and the shortlist of fixes
+- **Retrieval quality** — measured against a 23-case golden set and it doesn't hold up: 0% clean negatives, MRR 0.471, and every long/short query pair degrades. See [Known problems with retrieval](#known-problems-with-retrieval) for the baseline and the ranked list of 17 fixes
 - **Temporal context in prompts** — characters have no idea what day or time it is, and it shows in what they say
 - Split end-of-day into two requests, so neither approaches Vercel's 300s Hobby ceiling. This is the one item that can break a live game rather than merely look unfinished
 - Play it. The 15-real-minutes-per-in-game-hour rate has never actually been sat through, only skipped past, so it's unvalidated
@@ -260,6 +262,7 @@ Needs `SUPABASE_URL`, `SERVICE_ROLE` and `GOOGLE_API_KEY` in `.env`.
 ```bash
 npm run dev            # the game, standalone, on :3000
 npm run ingest         # re-embed lore/ into lore_chunks (idempotent)
+npm run eval-retrieval # score retrieval against eval/retrieval-golden.json
 npm run typecheck
 ```
 
@@ -289,12 +292,83 @@ The 0.5 threshold isn't filtering — it admits 8–18 chunks per query. And the
 
 Longer queries behave completely differently — *"has she ever been in a relationship before"* scores **0.716** with a 0.112 spread and returns exactly the right chunk. So the embedding and the corpus are fine; the problem is that a three-word message carries too little signal to discriminate.
 
-Worth trying, roughly in order:
+### Measuring it: the golden set
 
-1. **Embed more than the bare message.** Including the last few turns, or the segment context, would give the query enough signal to separate. This is the change most likely to fix it outright.
-2. **Raise the threshold and accept empty results.** `buildPrompt` already handles this — it writes *"(Nothing specific comes to mind.)"* — and that is a far better prompt than five unrelated diary entries.
-3. **Separate the pools.** Diary entries are long first-person narratives and dominate every result; structured lore (`FOOD PREFERENCES`, `INTERESTS & HOBBIES`) rarely surfaces even when it's the relevant thing. Retrieving them separately, or weighting by `source_file`, would stop one crowding out the other.
-4. **Skip retrieval for greetings.** `"morning"` doesn't need memory, and giving it five chunks actively hurts.
+Everything above was measured by hand, once. `npm run eval-retrieval` now scores retrieval against 23 hand-labelled cases in `eval/retrieval-golden.json`, so the next dozen changes can be compared instead of eyeballed.
+
+A case is a query plus the chunk that *should* win, identified by `{ file, contains }` — not by id or `chunk_index`, since `npm run ingest` reinserts every static row and re-chunking shifts indices. Labels are validated against the live corpus before any case runs; a label matching zero chunks is a broken test, and it would otherwise score identically to a retrieval failure.
+
+Four metrics, each over its own population:
+
+| metric | what it answers |
+|---|---|
+| `hitRate` | did the right chunk appear at all — positive cases only |
+| `mrr` | *where* did it land — rank 1 scores 1.0, rank 4 scores 0.25 |
+| `cleanNegatives` | how often "no memory needed" correctly returned nothing |
+| `meanSpread` | best minus worst similarity, over cases returning 2+ chunks |
+
+`mrr` is the one that catches this codebase's actual failure: `hitRate` can read 88% while the right chunk sits at rank 4 behind three diary entries, and the model reads rank 1 hardest. `meanSpread` is the one that says whether it won *for a reason* — it needs no labels, so it measures confidence rather than correctness. It is **not comparable across thresholds**: raising the threshold truncates the low tail and shrinks spread mechanically.
+
+Six of the 23 cases are **negatives that expect nothing at all**. Without them, "retrieve less" is invisible — every metric that rewards finding things punishes correctly finding nothing.
+
+**Baseline, k=5, threshold=0.5** (`eval/baseline.json`; later runs print a delta against it):
+
+| | |
+|---|---|
+| hit rate (positive) | 88% |
+| MRR | 0.471 |
+| clean negatives | **0%** |
+| mean spread | 0.067 |
+| mean chunks returned | 4.8 |
+
+Two results stand out. **Clean negatives is 0%** — all six greetings and acknowledgements return a full set of chunks. And **mean chunks returned is 4.8 out of a possible 5**, confirming the 0.5 threshold filters essentially nothing.
+
+The set deliberately pairs a long and a short query against the *same* target chunk, which isolates phrasing from everything else. All four pairs degrade:
+
+| target chunk | long query | short query |
+|---|---|---|
+| `FOOD PREFERENCES` | rank 1, spread 0.160 | rank 3, spread 0.059 |
+| `INTERESTS & HOBBIES` | rank 1, spread 0.082 | rank 4, spread 0.043 |
+| `HIYORI FAMILY` | rank 1, spread 0.072 | rank 2, spread 0.047 |
+| `WHAT ANNOYS OR PUTS HER OFF` | rank 1, spread 0.189 | **not retrieved**, spread 0.028 |
+
+Same corpus, same answer, only the wording differs — and the spread roughly halves each time. That last row is the sharpest: *"sorry i'm late"* fails to retrieve the chunk that names lateness as a deal-breaker, so the model answers a genuinely character-defining moment with nothing.
+
+One surprise: `"durian?"` — a single word — ranks its chunk **first**, because durian appears exactly once in the corpus. Rare tokens survive short queries; common ones drown. That is close to a direct argument for hybrid search.
+
+### What to fix
+
+Grouped by what each change actually attacks. Ordered so the cheap independent ones land before the two big ones.
+
+**The corpus — what gets stored**
+1. **Put the day inside knowledge chunk content.** It currently lives only in `source_file` as `dynamic-day-N`, which is neither embedded nor shown to the model, so a memory can't be placed in time and identical-format chunks have nothing to tell them apart.
+2. **Enforce the diary's `[Day N — In-game]` tag** rather than asking the model for it in the prompt — there's no validation today.
+3. **Persist in-game time.** `messages` has no time column; the timestamps in chat are derived client-side and lost on reload.
+4. **Resolve the two dead pools.** `character='events'` (30 chunks) and `character='adrian'` (4) are retrieved by *nothing* — `matchLoreChunks` is only ever called with an `NPCCharacter`. That's 48% of the static corpus embedded and unreachable. The events chunks also embed `affection_outcomes`, so they're spoiler text and can't be wired in as-is.
+5. **Re-chunk the long files.** Chunk sizes run 91–1521 chars, a 16× spread; long chunks average out to a mushy centroid and match everything weakly.
+6. **Consolidate old knowledge chunks.** By day 30 each character has ~30 chunks from one prompt in one register — engineered to cluster tightly.
+
+**The query — what gets asked**
+
+7. **Embed more than the bare message** (last 2–3 turns). Still the single change most likely to fix it outright. `GoldenCase.context` exists for scoring this against the same set.
+8. **Skip retrieval for greetings.** Six negative cases already measure this.
+9. **HyDE / query rewriting.** Real gains on short queries, but it buys with an LLM call what hybrid search gives free.
+
+**The ranking — what wins**
+
+10. **Hybrid search: Postgres full-text + vector.** Short queries can't discriminate by cosine — that's inherent at that length, not a tuning failure. FTS gives `"morning"` a literal token. The `durian` result above is the evidence.
+11. **Raise the threshold and accept empty results.** `buildPrompt` already writes *"(Nothing specific comes to mind.)"*, which beats five unrelated diary entries. At `--threshold 0.6` clean negatives goes 0% → 100% and MRR 0.471 → 0.800, at the cost of hit rate.
+12. **Separate the pools, or weight by `source_file`.** Diary entries dominate; structured lore rarely surfaces even when it's the answer. `cycling-multi` measures exactly this.
+13. **Recency in a re-rank pass.** Cosine has no reason to prefer day 25 over day 3. Depends on (1).
+14. **Cap per source type** — max 2 diary + 2 knowledge + 2 static rather than top-5 overall.
+
+**The prompt — how retrieved text is presented**
+
+15. **Temporal context in `buildPrompt`** — see below.
+16. **Stop labelling retrieved chunks as fact.** Five 0.53-similarity misses currently arrive under *"RELEVANT MEMORY (things Hiyori knows)"*.
+17. **Move Adrian's profile out of retrieval and into the prompt.** Four chunks, always relevant to every NPC — retrieval is the wrong mechanism for something that is never *not* relevant.
+
+Items 6 and 13 only pay off on a long run, and day 2+ has never been played in the UI, so they're research-shaped rather than fix-shaped for now.
 
 ### Missing temporal context
 
