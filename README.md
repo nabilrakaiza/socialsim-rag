@@ -112,11 +112,11 @@ One content bug worth recording: `ENDING_FRAMING` originally used bare pronouns,
 
 | Layer | Tool |
 |---|---|
-| LLM | Gemma (via Google AI Studio, free tier, 32k context) |
+| LLM | Google AI Studio free tier. Each call type has its own fallback chain across two quota pools — `gemini-3.1-flash-lite` then `gemma-4-26b-a4b-it` for dialogue, reversed for batch work (`lib/gemma.ts`) |
 | Embeddings | Google `gemini-embedding-001`, truncated to 768-dim (`text-embedding-004` was shut down by Google before this project reached ingestion) |
-| Vector DB | Supabase pgvector |
+| Retrieval | Supabase pgvector (dense) + Postgres full-text search (sparse), fused with RRF |
 | Database | Supabase (game state, messages, diary entries, events log) |
-| Frontend | Next.js (App Router) + React + TypeScript + Tailwind 4 + Framer Motion |
+| Frontend | Next.js 16 (App Router) + React 19 + TypeScript + Tailwind 4 + Motion |
 | Backend | Next.js Route Handlers |
 | Deployment | Vercel |
 
@@ -127,33 +127,42 @@ All chosen for generous free tiers — this project is designed to run at zero c
 ## RAG Architecture
 
 ```
-Player action
+Player message
   ↓
-Embed query (gemini-embedding-001)
+Does it need memory at all?  (lib/query-intent.ts)
+  ├── no  ── greetings, acknowledgements: skip retrieval entirely, no API call
+  ↓ yes
+Embed query (gemini-embedding-001, 768-dim)
   ↓
-pgvector similarity search, filtered by character + similarity threshold
+match_lore_hybrid  ── two arms over the same candidate pool,
+  ├── dense   pgvector cosine, ranked
+  ├── sparse  Postgres full-text (GIN on content_tsv), ranked
+  └── fused   Reciprocal Rank Fusion, k=3
+  ↓            (both arms scoped by character + is_static/session_id)
+Top-k chunks
   ↓
-Retrieve top-k lore chunks
+Build prompt:
+  persona + Adrian profile block + WHEN THIS IS HAPPENING
+  + retrieved chunks + conversation history + relationship stage
   ↓
-Build prompt: [system + character personality + retrieved chunks + conversation history]
+Dialogue model generates the reply (JSON)
   ↓
-Gemma generates response + affection delta (as JSON)
-  ↓
-Update Supabase game state
-  ↓
-End of day: re-embed + store new diary/knowledge chunks if triggered
+End of day (batch, not per message):
+  score events → knowledge chunks per character → affection deltas
+  → diary entry if triggered → re-embed and store
 ```
+
+Affection is deliberately **not** scored per message — it's a single end-of-day pass (`lib/batch-eval.ts`), so the meter reflects a day rather than a sentence.
 
 ### `lore_chunks` table design
 Every chunk (static lore or dynamically generated) lives in one table, distinguished by:
 - `is_static` — `true` for base lore ingested once, `false` for content generated during gameplay
 - `session_id` — `null` for static lore (shared across all playthroughs), set for dynamic content (scoped to one playthrough)
-- `character` — which NPC's knowledge this chunk belongs to (`hiyori`, `shiori`, `yuki`, or `events`)
+- `character` — whose knowledge this chunk belongs to: `hiyori`, `shiori`, or `yuki`. Only these three, because retrieval is only ever called with an `NPCCharacter` — a chunk filed under anything else is unreachable by construction (see [Unreachable chunks](#unreachable-chunks))
+- `content_tsv` — generated `tsvector` over `content`, with a GIN index, for the lexical arm of hybrid retrieval
 
-This lets retrieval pull `is_static = true OR session_id = current_session` in one query — base lore plus whatever this specific playthrough has generated so far. Both `match_lore_chunks` and `match_lore_multi_character` take a `match_session_id` parameter implementing exactly this filter (added via the `add_session_scoping_to_lore_retrieval` migration).
+This lets retrieval pull `is_static = true OR session_id = current_session` in one query — base lore plus whatever this specific playthrough has generated so far. `match_lore_chunks`, `match_lore_multi_character` and `match_lore_hybrid` all take a `match_session_id` parameter implementing exactly this filter.
 
-> **Note on the `events` character bucket:** nothing in the game retrieves it yet — `lib/events.ts` resolves events by id from `events.json` directly, so there's no reason to find them by embedding search. It's kept current regardless, since it costs nothing and makes event lore available the moment something wants it.
->
 > `scripts/ingest.ts` is **idempotent**: it clears before inserting, scoped to `is_static = true`. That scoping matters — dynamic chunks are a playthrough's generated memory (knowledge updates, diary entries), so deleting those would erase what the characters remember. Only base lore is disposable, because it rebuilds from `lore/` on demand. Without the clear step a re-run duplicated every chunk rather than refreshing it, which is precisely why the events content sat stale for days.
 
 ### Chunking strategy
@@ -171,11 +180,11 @@ Target size: 150–400 tokens per chunk.
 - `hiyori_backstory.txt` — family, academic background, past relationships, habits
 - `hiyori_interests.txt` — personality, likes/dislikes, hobbies, things she wants but won't say
 - `hiyori_diary.txt` — static pre-game entries + dynamic entries generated during gameplay
-- `diary_system.md` — spec for how/when diary entries are generated and what context Gemma receives
+- `diary_system.md` — spec for how/when diary entries are generated and what context the model receives. Reference only; not embedded
 - `shiori_knowledge.txt` — what Shiori knows about Hiyori and Adrian, her advice style
 - `yuki_knowledge.txt` — Yuki's background, her hidden feelings for Adrian, what she knows about Hiyori
-- `adrian_profile.txt` — player character background (for NPCs to reference, not for a knowledge base of his own)
-- `events.json` — all real-life events, extended/active events with sub-events, and the 5 endings
+- `adrian_profile.txt` — the player character, with per-NPC sections for what each of them knows about him. Not embedded: it's parsed into a fixed prompt block by `lib/adrian-profile.ts` (see [Unreachable chunks](#unreachable-chunks))
+- `events.json` — all real-life events, extended/active events with sub-events, and the 5 endings. Not embedded: read directly by `lib/events.ts`
 
 Adrian does **not** have a dynamic knowledge base — only Hiyori, Shiori, and Yuki maintain evolving perceptions of him.
 
@@ -190,7 +199,7 @@ The browser never imports `lib/` at runtime. `lib/supabase.ts` holds `SERVICE_RO
 | `POST /api/session` | `startNewGame` | Mints a `game_state` row; the returned id is the only save handle |
 | `GET /api/session/:id` | `getGameState` | Resume after a refresh |
 | `POST /api/day/start` | `startDay` | Schedule + which events fire in which segment |
-| `POST /api/chat` | `sendPlayerMessage` | ~14s per reply |
+| `POST /api/chat` | `sendPlayerMessage` | ~2s per reply (median; 1.3s when the greeting gate skips retrieval) |
 | `POST /api/event/respond` | `recordEventResponse` | Persists free text; scoring waits for end of day |
 | `POST /api/day/end` | `endDay` | 1m40s–4m24s. **Streams NDJSON progress** — see below |
 | `POST /api/confess` | `confess` | Ends the run |
@@ -273,7 +282,9 @@ npm run typecheck
 
 Playing writes real rows to Supabase — `game_state`, `messages`, `events_log`, and per-session `lore_chunks`. They're scoped by `session_id`, so clearing test playthroughs never touches the 37 static lore rows (`is_static = true`).
 
-Two pacing notes that look like bugs but aren't: a chat reply takes **~14s**, and free segments run at **one in-game hour per fifteen real minutes** — use *skip ahead* unless you're specifically testing the clock.
+A pacing note that looks like a bug but isn't: free segments run at **one in-game hour per fifteen real minutes** — use *skip ahead* unless you're specifically testing the clock.
+
+Chat replies land in **~2s** (median over 5 messages; 1.3s for a greeting, which skips retrieval entirely). Earlier notes in this file said ~14s — that was the Gemma-first dialogue chain, before `gemini-3.1-flash-lite` took the first slot.
 
 To run it as it appears on the site instead, start this project on `:3000` and the personal site on `:3001` with `SOCIALSIM_API_URL=http://localhost:3000`.
 
@@ -369,7 +380,7 @@ One surprise: `"durian?"` — a single word — ranks its chunk **first**, becau
 
 **The rule is subtractive**, not a pattern match: strip every word that carries no information need — English function words plus the closed classes of conversational speech (greetings, farewells, acknowledgements, politeness, laughter) — and see whether anything is left. *"sorry i'm late"* keeps `late` and retrieves, which is right: the chunk naming lateness as a deal-breaker is exactly what should ground that reply. *"sorry!"* alone keeps nothing and doesn't. Multi-word farewells get their own anchored phrase list, because *"see you tomorrow"* leaves `tomorrow`, a word that matters in *"what are you doing tomorrow"*.
 
-Lexical rather than an LLM classifier: chat already runs ~14s, and spending a round trip to recognise "morning" isn't a trade worth making. The check runs before embedding, so a greeting now costs **no API call at all**.
+Lexical rather than an LLM classifier: an extra round trip to recognise "morning" would roughly double a ~2s reply for no benefit. The check runs before embedding, so a greeting now costs **no API call at all**.
 
 **Validating it honestly.** The rule was written while looking at the golden set's six negatives, so 6/6 there proves nothing — that's the fixture it was built against. `npm run test-query-intent` scores 50 held-out messages that appear nowhere in the golden set: **18/18 real questions correctly retrieve, 32/32 greetings correctly skip.**
 
@@ -468,7 +479,7 @@ Three things this corrected:
 
 - **The diary isn't the long pole.** `reflecting` is bigger. Splitting the diary off alone would still leave ~120s behind.
 - **Concurrency isn't the problem.** `reflecting` fires five calls through `Promise.all`; running the same five sequentially takes **2.6× longer**. It's slow because Gemma is slow *and wildly variable* — identical work measured anywhere from 19s to 86s, and `Promise.all` finishes with its worst call.
-- **"~14s per LLM call" was a dialogue figure.** A knowledge-update prompt takes 20–40s. Different prompt shape, different cost.
+- **"~14s per LLM call" was a dialogue figure**, and is now stale twice over: dialogue is ~2s on flash-lite. A knowledge-update prompt still takes 20–40s. Different prompt shape, different cost.
 
 ### The 23× option, and why it isn't free
 

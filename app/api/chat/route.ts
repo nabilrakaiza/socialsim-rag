@@ -3,8 +3,9 @@ import type { NPCCharacter } from '@/lib/gemma';
 import type { RelationshipStage } from '@/lib/relationship';
 import { fail, ok, readJson, requireString } from '../_shared';
 
-// One player message in, one NPC reply out. Retrieval plus generation, so
-// roughly 12-15s — the client should show a pending state rather than block.
+// One player message in, one NPC reply out. Retrieval plus generation, ~2s
+// median on the flash-lite chain — still worth a pending state in the client,
+// since the fallback model is considerably slower.
 export const maxDuration = 120;
 
 interface ChatBody {

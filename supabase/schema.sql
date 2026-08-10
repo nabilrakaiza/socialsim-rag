@@ -3,7 +3,11 @@
 -- ============================================================
 -- Reference copy of the live schema — verified against the actual
 -- project via Supabase MCP (list_tables/list_extensions/execute_sql)
--- on 2026-07-13. Every statement below already exists live (tables,
+-- on 2026-07-13, refreshed 2026-08-10 for hybrid retrieval.
+--
+-- Changes since are tracked as files in supabase/migrations/ and
+-- folded back into this file; this stays the single readable
+-- snapshot of what is actually live. Every statement below already exists live (tables,
 -- indexes, FKs, RLS, both RPCs, and the cron job), most of it built
 -- incrementally in the SQL editor before this file was consolidated.
 --
@@ -26,17 +30,26 @@ create extension if not exists vector;
 create table public.lore_chunks (
   id           uuid primary key default gen_random_uuid(),
   source_file  text not null,         -- e.g. 'hiyori_backstory.txt'
-  character    text not null,         -- 'hiyori' | 'shiori' | 'yuki' | 'adrian' | 'events'
+  character    text not null,         -- 'hiyori' | 'shiori' | 'yuki' (see note below)
   chunk_index  integer not null,      -- order within source file
   content      text not null,         -- raw text of this chunk
   embedding    vector(768) not null,  -- gemini-embedding-001, truncated to 768 dims
   is_static    boolean default true,  -- true = base lore (shared), false = generated during gameplay
   session_id   text,                  -- set only for dynamic (is_static=false) chunks
-  created_at   timestamptz default now()
+  created_at   timestamptz default now(),
+  -- Lexical arm of hybrid retrieval. Generated, so ingestion writes
+  -- nothing extra and existing rows backfill on add.
+  content_tsv  tsvector generated always as (to_tsvector('english', content)) stored
 );
 
+-- `character` held 'adrian' and 'events' until 2026-08-10. Retrieval is
+-- only ever called with an NPC, so those 34 chunks (48% of the static
+-- corpus) were embedded and unreachable — they are gone, and
+-- lib/chunking.ts now throws rather than defaulting a file into a pool
+-- nothing searches. See README "Unreachable chunks".
+
 -- IVFFlat with lists=100 — note this is oversized for the current
--- ~60-row table (most lists end up empty/near-empty at this scale,
+-- ~37-row table (most lists end up empty/near-empty at this scale,
 -- which can hurt recall since IVFFlat only probes a handful of lists
 -- by default). Retrieval has been manually verified as good anyway
 -- (see scripts/test-retrieval.ts results in project memory), so not
@@ -51,6 +64,10 @@ create index on public.lore_chunks (character);
 
 -- Index for filtering static vs dynamic chunks, and by session
 create index on public.lore_chunks (is_static, session_id);
+
+-- Full-text index backing match_lore_hybrid's sparse arm.
+create index if not exists lore_chunks_content_tsv_idx
+  on public.lore_chunks using gin (content_tsv);
 
 
 -- 3. GAME STATE
@@ -248,3 +265,25 @@ select cron.schedule(
     where updated_at < now() - interval '7 days';
   $$
 );
+
+
+-- 11. HELPER FUNCTION: match_lore_hybrid
+-- ============================================================
+-- Full-text search fused with vector search via Reciprocal Rank
+-- Fusion. This is what lib/chat.ts calls; match_lore_chunks above
+-- is kept so both paths stay scoreable against the golden set.
+--
+-- Cosine alone cannot rank a short conversational message: every
+-- chunk lands within ~0.03 of every other. The two arms fail on
+-- different queries, which is why they are fused rather than one
+-- replacing the other. Full rationale, including the three
+-- implementation traps, lives in
+-- supabase/migrations/0001_hybrid_search.sql.
+--
+-- rrf_k defaults to 3, not the literature's 60: swept against
+-- eval/retrieval-golden.json, 60 scored MRR 0.554 and 3 scored
+-- 0.598. Re-sweep after any change to chunking or corpus size.
+
+-- (definition kept in supabase/migrations/0001_hybrid_search.sql —
+-- reproduced there in full with its reasoning, rather than
+-- duplicated here where the two copies would drift apart)
