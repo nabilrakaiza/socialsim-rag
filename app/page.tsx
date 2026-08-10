@@ -20,6 +20,7 @@ import { DayEnd, type DayRecapEntry } from './components/DayEnd';
 import { EndingScreen } from './components/EndingScreen';
 import { ArcAnnouncement } from './components/ArcAnnouncement';
 import { ArcStatus } from './components/ArcStatus';
+import { HowToPlay } from './components/HowToPlay';
 
 const SESSION_KEY = 'socialsim-session-id';
 
@@ -103,6 +104,11 @@ export default function Page() {
   const [answered, setAnswered] = useState<Record<string, boolean>>({});
   const [savingAnswer, setSavingAnswer] = useState(false);
 
+  // Sits between the landing screen and day 1. Not persisted: it's shown when
+  // someone starts a NEW run, and a returning player resuming from
+  // localStorage skips straight past it.
+  const [showingHowTo, setShowingHowTo] = useState(false);
+
   const [endResult, setEndResult] = useState<EndDayResult | null>(null);
   const [endProgress, setEndProgress] = useState<string | null>(null);
 
@@ -182,6 +188,7 @@ export default function Page() {
         setLines([]);
         setAnswered({});
         setEndResult(null);
+        setShowingHowTo(false);
       } finally {
         setLoading(false);
       }
@@ -304,6 +311,10 @@ export default function Page() {
     );
   }
 
+  if (showingHowTo) {
+    return <HowToPlay onStart={newGame} starting={loading} />;
+  }
+
   if (!sessionId || !state) {
     return (
       <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6">
@@ -316,12 +327,14 @@ export default function Page() {
           themselves, remembering it in a vector database. No score, no meter — just how they talk to you.
         </p>
         {error && <p className="mt-4 font-mono text-sm text-red-400">{error}</p>}
+        {/* Opens the explainer rather than minting a session — a run should
+            not exist until the player has been told what they are starting. */}
         <button
-          onClick={newGame}
+          onClick={() => setShowingHowTo(true)}
           disabled={loading}
           className="mt-8 self-start rounded-[10px] bg-violet px-6 py-2.5 font-mono text-sm font-medium text-white transition-shadow hover:glow-violet disabled:opacity-40"
         >
-          {loading ? 'Starting…' : 'Begin →'}
+          Begin →
         </button>
       </main>
     );
