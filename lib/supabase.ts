@@ -261,11 +261,17 @@ export interface DiaryEntry {
 // defaults. The defaults exist, but relying on them is how relationship_stage
 // ended up defaulting to lowercase 'stranger' while the code only ever
 // produces 'Stranger' — a fresh row held a value the type said was impossible.
-export async function insertGameState(sessionId: string): Promise<GameState> {
+// Thrown when the chosen save name is already in use. A distinct type rather
+// than a string check at the call site, because the API layer has to turn this
+// into a specific message on a specific field and everything else into a 500.
+export class UsernameTakenError extends Error {}
+
+export async function insertGameState(sessionId: string, username: string): Promise<GameState> {
   const { data, error } = await supabase
     .from('game_state')
     .insert({
       session_id: sessionId,
+      username,
       current_day: 1,
       affection: 0,
       relationship_stage: 'Stranger',
@@ -276,6 +282,30 @@ export async function insertGameState(sessionId: string): Promise<GameState> {
     })
     .select()
     .single();
+
+  if (error) {
+    // 23505 is Postgres' unique_violation. Caught here rather than pre-checked
+    // with a select, because a check-then-insert races: two players claiming
+    // the same name in the same moment would both see it free. The index is
+    // the only thing that can actually decide.
+    if (error.code === '23505') {
+      throw new UsernameTakenError(`"${username}" is already taken`);
+    }
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+// Case-insensitive to match the unique index, so a player who capitalises
+// differently on their return still finds their save. Returns null rather than
+// throwing: "no save under that name" is an ordinary answer here, not a fault.
+export async function getGameStateByUsername(username: string): Promise<GameState | null> {
+  const { data, error } = await supabase
+    .from('game_state')
+    .select()
+    .ilike('username', username)
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);

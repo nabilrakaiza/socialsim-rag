@@ -41,7 +41,7 @@ const ANSWERED_EVENTS = [
 ];
 
 async function seedDay(): Promise<string> {
-  const id = (await startNewGame()).session_id;
+  const id = (await startNewGame(`profile-${Date.now()}`)).session_id;
 
   await supabase.from('messages').insert(
     MESSAGES.map((m) => ({ session_id: id, day: 1, ...m }))

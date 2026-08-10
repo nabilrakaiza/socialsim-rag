@@ -14,7 +14,7 @@ const rows = (id: string) =>
   supabase.from('events_log').select('event_id, player_action').eq('session_id', id);
 
 async function main() {
-  const id = (await startNewGame()).session_id;
+  const id = (await startNewGame(`reroll-${Date.now()}`)).session_id;
   let failures = 0;
 
   const first = await startDay(id);

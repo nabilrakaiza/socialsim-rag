@@ -43,7 +43,7 @@ const DAYS: Turn[][] = [
 
 async function main() {
   const days = Number(process.argv[2] ?? DAYS.length);
-  const id = (await startNewGame()).session_id;
+  const id = (await startNewGame(`seed-${Date.now()}`)).session_id;
   console.log(`session ${id}\n`);
 
   for (let day = 1; day <= Math.min(days, DAYS.length); day++) {

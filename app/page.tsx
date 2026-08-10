@@ -21,6 +21,7 @@ import { EndingScreen } from './components/EndingScreen';
 import { ArcAnnouncement } from './components/ArcAnnouncement';
 import { ArcStatus } from './components/ArcStatus';
 import { HowToPlay } from './components/HowToPlay';
+import { ResumeSave } from './components/ResumeSave';
 
 const SESSION_KEY = 'socialsim-session-id';
 
@@ -104,10 +105,14 @@ export default function Page() {
   const [answered, setAnswered] = useState<Record<string, boolean>>({});
   const [savingAnswer, setSavingAnswer] = useState(false);
 
-  // Sits between the landing screen and day 1. Not persisted: it's shown when
-  // someone starts a NEW run, and a returning player resuming from
-  // localStorage skips straight past it.
-  const [showingHowTo, setShowingHowTo] = useState(false);
+  // Which pre-game screen is showing. Not persisted: a returning player whose
+  // localStorage still holds a session id skips all of it.
+  const [screen, setScreen] = useState<'landing' | 'howto' | 'continue'>('landing');
+
+  // Errors that belong to the username field rather than the page. Kept apart
+  // from `error` so "already taken" appears under the input the player can
+  // actually fix, not as a page-level failure.
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [endResult, setEndResult] = useState<EndDayResult | null>(null);
   const [endProgress, setEndProgress] = useState<string | null>(null);
@@ -176,11 +181,12 @@ export default function Page() {
       });
   }, []);
 
-  const newGame = () =>
+  const newGame = (username: string) =>
     guard(async () => {
       setLoading(true);
+      setSaveError(null);
       try {
-        const created = await api<GameState>('/api/session', {});
+        const created = await api<GameState>('/api/session', { username });
         localStorage.setItem(SESSION_KEY, created.session_id);
         setSessionId(created.session_id);
         setState(created);
@@ -188,7 +194,34 @@ export default function Page() {
         setLines([]);
         setAnswered({});
         setEndResult(null);
-        setShowingHowTo(false);
+        setScreen('landing');
+      } catch (err) {
+        // Rethrown after being attributed to the field, so guard() still
+        // clears it from the page-level slot and the input owns the message.
+        setSaveError((err as Error).message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    });
+
+  const resumeGame = (username: string) =>
+    guard(async () => {
+      setLoading(true);
+      setSaveError(null);
+      try {
+        const found = await api<GameState>('/api/session/resume', { username });
+        localStorage.setItem(SESSION_KEY, found.session_id);
+        setSessionId(found.session_id);
+        setState(found);
+        setPlan(null);
+        setLines([]);
+        setAnswered({});
+        setEndResult(null);
+        setScreen('landing');
+      } catch (err) {
+        setSaveError((err as Error).message);
+        throw err;
       } finally {
         setLoading(false);
       }
@@ -311,8 +344,22 @@ export default function Page() {
     );
   }
 
-  if (showingHowTo) {
-    return <HowToPlay onStart={newGame} starting={loading} />;
+  if (screen === 'howto') {
+    return <HowToPlay onStart={newGame} starting={loading} error={saveError} />;
+  }
+
+  if (screen === 'continue') {
+    return (
+      <ResumeSave
+        onResume={resumeGame}
+        onBack={() => {
+          setSaveError(null);
+          setScreen('landing');
+        }}
+        loading={loading}
+        error={saveError}
+      />
+    );
   }
 
   if (!sessionId || !state) {
@@ -329,13 +376,28 @@ export default function Page() {
         {error && <p className="mt-4 font-mono text-sm text-red-400">{error}</p>}
         {/* Opens the explainer rather than minting a session — a run should
             not exist until the player has been told what they are starting. */}
-        <button
-          onClick={() => setShowingHowTo(true)}
-          disabled={loading}
-          className="mt-8 self-start rounded-[10px] bg-violet px-6 py-2.5 font-mono text-sm font-medium text-white transition-shadow hover:glow-violet disabled:opacity-40"
-        >
-          Begin →
-        </button>
+        <div className="mt-8 flex items-center gap-3">
+          <button
+            onClick={() => {
+              setSaveError(null);
+              setScreen('howto');
+            }}
+            disabled={loading}
+            className="rounded-[10px] bg-violet px-6 py-2.5 font-mono text-sm font-medium text-white transition-shadow hover:glow-violet disabled:opacity-40"
+          >
+            New game →
+          </button>
+          <button
+            onClick={() => {
+              setSaveError(null);
+              setScreen('continue');
+            }}
+            disabled={loading}
+            className="rounded-[10px] border border-line px-5 py-2.5 font-mono text-sm transition-colors hover:border-mint hover:text-mint disabled:opacity-40"
+          >
+            Continue
+          </button>
+        </div>
       </main>
     );
   }

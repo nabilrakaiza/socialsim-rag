@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'motion/react';
+import { USERNAME_MAX } from '@/lib/username';
 
 // Shown once, between "Begin" and day 1.
 //
@@ -124,7 +126,17 @@ function Free({ children }: { children: React.ReactNode }) {
   return <span className="font-mono text-mint">{children}</span>;
 }
 
-export function HowToPlay({ onStart, starting }: { onStart: () => void; starting: boolean }) {
+export function HowToPlay({
+  onStart,
+  starting,
+  error,
+}: {
+  onStart: (username: string) => void;
+  starting: boolean;
+  error: string | null;
+}) {
+  const [username, setUsername] = useState('');
+
   return (
     <motion.main
       initial={{ opacity: 0 }}
@@ -152,20 +164,45 @@ export function HowToPlay({ onStart, starting }: { onStart: () => void; starting
         ))}
       </div>
 
-      <div className="mt-12 border-t border-line pt-8">
+      {/* The name is asked for HERE rather than on the landing screen, so the
+          player has read what they're committing to before naming it. */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!starting) onStart(username);
+        }}
+        className="mt-12 border-t border-line pt-8"
+      >
+        <label htmlFor="new-username" className="font-mono text-xs tracking-[0.12em] text-mint">
+          // name this save
+        </label>
+        <input
+          id="new-username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          maxLength={USERNAME_MAX}
+          autoComplete="off"
+          placeholder="anything you'll remember"
+          className="mt-3 block w-full rounded-[10px] border border-line bg-card px-4 py-2.5 font-mono text-sm outline-none placeholder:text-muted focus:border-mint"
+        />
+        {error && <p className="mt-2 font-mono text-xs text-red-400">{error}</p>}
+
         <button
-          onClick={onStart}
-          disabled={starting}
-          className="rounded-[10px] bg-violet px-6 py-2.5 font-mono text-sm font-medium text-white transition-shadow hover:glow-violet disabled:opacity-40"
+          type="submit"
+          disabled={starting || username.trim().length === 0}
+          className="mt-5 rounded-[10px] bg-violet px-6 py-2.5 font-mono text-sm font-medium text-white transition-shadow hover:glow-violet disabled:opacity-40"
         >
           {starting ? 'Starting…' : 'Start day 1 →'}
         </button>
-        {/* Stated here because it is the one thing that can lose a run, and the
-            player has no way to guess it: the save lives in this browser. */}
+
+        {/* Said plainly because it is the one thing that can lose a run and the
+            player cannot guess it: the name is how you get back in, and it is
+            not a password. */}
         <p className="mt-4 font-mono text-xs leading-[1.7] text-muted">
-          your progress is saved in this browser — same browser, same device, or you start over
+          type this name on <span className="text-mint">Continue</span> to pick the run back up on any
+          browser. it isn&rsquo;t a password — anyone who knows it can open your save
         </p>
-      </div>
+      </form>
     </motion.main>
   );
 }

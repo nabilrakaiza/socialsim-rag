@@ -77,6 +77,13 @@ create index if not exists lore_chunks_content_tsv_idx
 create table public.game_state (
   id                    uuid primary key default gen_random_uuid(),
   session_id            text unique not null,   -- frontend-generated session ID
+  -- Player-chosen save name, so a run can be found again from a different
+  -- browser or device. An IDENTIFIER, NOT A SECRET: anyone who guesses it can
+  -- open that save, and because confessing is permanent they can end it. That
+  -- trade buys a one-field flow and is deliberate — don't build anything on
+  -- top of this that needs real authentication. Unique case-insensitively via
+  -- game_state_username_unique; null for sessions predating it.
+  username              text,
   current_day           integer default 1,
   -- Day most recently claimed for end-of-day scoring. Written ONLY by
   -- claim_day_for_scoring / release_day_scoring_claim (section 12) — never
@@ -356,3 +363,19 @@ create trigger game_state_set_updated_at
 --   strand the session permanently.
 --
 -- Definitions live in supabase/migrations/0002_end_of_day_claim.sql.
+
+
+-- 13. USERNAME SAVES
+-- ============================================================
+-- lower() so "Nabil" and "nabil" cannot both be claimed, and so a
+-- player who capitalises differently on their return still finds
+-- their save. Postgres excludes nulls from unique indexes, so every
+-- session created before this kept its null without colliding.
+--
+-- The index is also the only thing that can decide a race: two
+-- players claiming the same name in the same moment would both see
+-- it free under a check-then-insert, so insertGameState catches the
+-- 23505 unique_violation rather than pre-checking.
+
+create unique index if not exists game_state_username_unique
+  on public.game_state (lower(username));

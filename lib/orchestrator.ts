@@ -39,6 +39,7 @@ import {
   updateEventLogOutcome,
 } from './supabase';
 import type { EventLog, GameState } from './supabase';
+import { normalizeUsername } from './username';
 import {
   loadEvents,
   checkExtendedEventTrigger,
@@ -162,8 +163,8 @@ export function reconstructArcState(logs: EventLog[], currentDay: number): ArcSt
 // Mints a playthrough. The session id is the only handle the client keeps —
 // there are no accounts, so whoever holds the id holds the save. That's why
 // it's a UUID rather than anything guessable or sequential.
-export async function startNewGame(): Promise<GameState> {
-  return insertGameState(crypto.randomUUID());
+export async function startNewGame(username: string): Promise<GameState> {
+  return insertGameState(crypto.randomUUID(), normalizeUsername(username));
 }
 
 // The stage is derived from affection rather than read off
