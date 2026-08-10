@@ -435,9 +435,26 @@ Hiyori's pool is the only one with enough chunks to be conclusive, and it is: **
 
 It's also getting worse as the run goes on: her nearest-neighbour mean was **0.799 at 5 chunks** and **0.884 at 11**. A thirty-day run has roughly triple that again.
 
-**So the hypothesis holds.** Every knowledge chunk comes from one prompt with one instruction, and they converge on a single register — *"Adrian did X, she took that to mean Y"* — regardless of how different the days actually were. Consolidating old chunks (item 6) moves from research-shaped to evidence-backed. The `[Day N]` prefix (item 1) helps vary the text but nowhere near enough.
+**So the hypothesis holds**, though it took a wrong turn to confirm it.
 
-The honest limitation: retrieval quality on this corpus is still unmeasured. Clustering says the chunks are hard to tell apart; it doesn't prove a real query picks the wrong one. That needs paraphrase queries.
+Inspecting the actual chunks showed that **four of Hiyori's seven knowledge chunks were "nothing meaningful happened regarding Adrian today"** — paraphrases of one sentence, embedded and stored as retrievable memory. `buildKnowledgeChunk` only skipped generation when there were no messages *and* no events; a day where Adrian chatted but revealed nothing still wrote a chunk. That is most days, since a dating sim is mostly Adrian asking about her.
+
+That's now fixed: the knowledge prompt returns a `notable` flag and nothing is written when it's false (`lib/gemma.ts`, `lib/batch-eval.ts`). A model-reported flag rather than pattern-matching the prose, which would break as soon as the wording drifted. Re-running the same ten seeded days: **4 null chunks of 7 → 0 of 6.**
+
+The first attempt at that prompt **over-corrected to zero knowledge chunks across ten days** — the wording marked a day unremarkable "if he only asked questions", which is nearly every exchange in this game. Characters would have learned nothing, ever. The retuned version reserves false for genuinely empty exchanges and tells the model to err toward true.
+
+**Removing the nulls did not improve clustering — it made it worse**, which is the opposite of what the fix was hoped to do and the more useful result:
+
+| run | dynamic n | dynamic NN | static, same size | subsamples ≥ dynamic |
+|---|---|---|---|---|
+| with nulls | 11 | 0.884 | 0.796 | 0 / 400 |
+| nulls removed | 8 | **0.905** | 0.785 | 0 / 400 |
+
+The null chunks were semantically *distinct* from the substantive ones, so they were diluting the measurement. Strip them and what remains is the real finding: the substantive chunks converge hard on a single register — *"Adrian did X, she took that to mean Y"* — regardless of how different the days were. Consolidation is the fix for that, and it is now cleanly evidenced rather than inferred from a confounded number.
+
+**A separate defect surfaced while reading the output, and is not fixed.** Two of six chunks attribute the wrong person's words to Adrian. Day 1's exchange was Adrian asking *"where do you usually ride?"* and Hiyori answering; the chunk reads *"Adrian shared his usual cycling routes."* Day 3's was Yuki saying she dreams in indifference curves; the chunk reads *"Adrian admitted that economics was so pervasive he had even begun dreaming in indifference curves."* The prompt already warns about subject confusion in bold terms and it still happens on thin exchanges — so a third of this corpus is confidently wrong about who did what.
+
+The honest limitation stands: clustering shows the chunks are hard to tell apart, not that a real query picks the wrong one. That needs paraphrase queries.
 
 
 ### What to fix
@@ -450,7 +467,7 @@ Grouped by what each change actually attacks. Ordered so the cheap independent o
 3. **Persist in-game time.** `messages` has no time column; the timestamps in chat are derived client-side and lost on reload.
 4. ~~**Resolve the two dead pools.**~~ **Done** — see [Unreachable chunks](#unreachable-chunks).
 5. **Re-chunk the long files.** Chunk sizes run 91–1521 chars, a 16× spread; long chunks average out to a mushy centroid and match everything weakly.
-6. **Consolidate old knowledge chunks.** **Now evidence-backed** — see [Is per-playthrough memory searchable?](#is-per-playthrough-memory-searchable). Hiyori's generated memory is more tightly clustered than any of 400 size-matched samples of static lore, and it tightened from 0.799 to 0.884 between day 5 and day 10.
+6. **Consolidate old knowledge chunks.** **Now evidence-backed** — see [Is per-playthrough memory searchable?](#is-per-playthrough-memory-searchable). Hiyori's generated memory is more tightly clustered than any of 400 size-matched samples of static lore, and removing the null chunks made it tighter still (0.905), not looser.
 
 **The query — what gets asked**
 
@@ -465,6 +482,8 @@ Grouped by what each change actually attacks. Ordered so the cheap independent o
 12. **Separate the pools, or weight by `source_file`.** Diary entries dominate; structured lore rarely surfaces even when it's the answer. `cycling-multi` measures exactly this.
 13. **Recency in a re-rank pass.** Cosine has no reason to prefer day 25 over day 3. Depends on (1).
 14. **Cap per source type** — max 2 diary + 2 knowledge + 2 static rather than top-5 overall.
+
+18. **Subject confusion in knowledge chunks.** Two of six chunks in a ten-day run credit Adrian with words another character said. The prompt already warns about this explicitly and it still happens on thin exchanges — so a third of a playthrough's memory can be confidently wrong about who did what. Worse than clustering, because a wrong memory is actively misleading rather than merely hard to find.
 
 **The prompt — how retrieved text is presented**
 

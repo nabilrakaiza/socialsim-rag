@@ -120,6 +120,20 @@ async function buildKnowledgeChunk(
 
   const update = await withRetry(() => generateKnowledgeUpdate(character, turns, events));
 
+  // A day that revealed nothing about Adrian writes no chunk. It used to write
+  // one anyway — "Nothing meaningful happened regarding Adrian today" — which
+  // was then embedded and retrievable, so the model could be handed, as
+  // memory, the fact that nothing happened. Four of one ten-day run's seven
+  // knowledge chunks were that sentence, all paraphrases of each other,
+  // clustering at 0.884 with one another.
+  //
+  // Not an edge case: any day where Adrian only asks questions is a day that
+  // teaches a character nothing about him, and that is most days.
+  //
+  // Returning null here also skips the embedding call, so a quiet day costs
+  // one LLM round trip instead of two.
+  if (!update.notable) return null;
+
   // The day goes INTO the content, not just source_file. source_file is a
   // filing label: buildPrompt only ever passes chunk.content to the model, and
   // the embedding is computed from content alone — so a day recorded only

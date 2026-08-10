@@ -316,6 +316,19 @@ export async function generateAffectionDelta(
 
 export interface KnowledgeUpdateResult {
   content: string;
+  /**
+   * Whether today actually revealed anything about Adrian.
+   *
+   * False is common and correct: a day where he only asked questions tells a
+   * character nothing about him. Those days used to be written as "Nothing
+   * meaningful happened regarding Adrian today", embedded, and stored as a
+   * retrievable chunk — four of one ten-day run's seven, all paraphrases of
+   * each other, sitting in the pool as things she supposedly knows.
+   *
+   * A model-reported flag rather than pattern-matching the prose, which would
+   * break the moment the wording drifted.
+   */
+  notable: boolean;
 }
 
 // Produces the TEXT that becomes a new dynamic lore_chunks row
@@ -359,12 +372,12 @@ ${messagesText}
 WHAT ELSE HAPPENED TODAY THAT ${name.toUpperCase()} WAS PART OF:
 ${eventsText}
 
-Write 2-4 sentences, third person. Draw on both the conversation and the events above — an event she was present for tells her as much about him as anything he said. This must be about ADRIAN — his actions today and what they reveal — filtered through ${name}'s perspective, NOT a description of ${name} herself or her own state. Get the subject right: sentences should read like "Adrian did/said X — ${name} took that to mean Y," never "${name} felt/looked/was X." Capture only what ${name} learned or came to feel about Adrian from TODAY's interaction — not a restatement of things she already knew before today. Stay consistent with her personality: a guarded character notices more than she'd ever say, a direct character forms clearer opinions outright, etc. If nothing meaningful happened today, write one short sentence acknowledging that instead of inventing detail.
+Write 2-4 sentences, third person. Draw on both the conversation and the events above — an event she was present for tells her as much about him as anything he said. This must be about ADRIAN — his actions today and what they reveal — filtered through ${name}'s perspective, NOT a description of ${name} herself or her own state. Get the subject right: sentences should read like "Adrian did/said X — ${name} took that to mean Y," never "${name} felt/looked/was X." Capture only what ${name} learned or came to feel about Adrian from TODAY's interaction — not a restatement of things she already knew before today. Stay consistent with her personality: a guarded character notices more than she'd ever say, a direct character forms clearer opinions outright, etc. Set "notable" to false ONLY when there is genuinely nothing about Adrian to record — a greeting, a logistics exchange, or a conversation where he said nothing of his own. Err toward true: a thin observation is worth keeping, and asking a question that shows he was paying attention, or remembering something, or how he reacted to what she said, all count as revealing. False is for empty exchanges, not merely modest ones. When it is false, still write one short sentence for "content" saying so; it will not be stored.
 
 Example of the right subject/perspective: "Adrian noticed she seemed stressed and asked about it without making a big deal of it — ${name} found that oddly considerate, though she'd never admit it out loud." (Adrian's action is the subject; ${name}'s reaction is the interpretation layered on top, not the main subject.)
 
 Respond with ONLY a single JSON object — no markdown code fences, no extra commentary before or after it:
-{ "content": "<2-4 sentence third-person update>" }`;
+{ "content": "<2-4 sentence third-person update>", "notable": <true or false> }`;
 }
 
 function parseKnowledgeUpdateResult(rawText: string): KnowledgeUpdateResult {
@@ -385,7 +398,15 @@ function parseKnowledgeUpdateResult(rawText: string): KnowledgeUpdateResult {
     throw new Error(`Gemma response did not match the expected shape: ${rawText}`);
   }
 
-  return { content: (parsed as { content: string }).content };
+  // Defaults to true when the model omits the field: a missing flag should
+  // keep a real observation rather than silently discard it. The failure that
+  // matters is losing a memory, not storing one extra.
+  const notable = (parsed as { notable?: unknown }).notable;
+
+  return {
+    content: (parsed as { content: string }).content,
+    notable: notable === undefined ? true : Boolean(notable),
+  };
 }
 
 export async function generateKnowledgeUpdate(
