@@ -12,7 +12,8 @@
     "test-retrieval": "tsx scripts/test-retrieval.ts",
     "eval-retrieval": "tsx scripts/eval-retrieval.ts",
     "test-query-intent": "tsx scripts/test-query-intent.ts",
-    "eval-memory": "tsx scripts/eval-memory.ts"
+    "eval-memory": "tsx scripts/eval-memory.ts",
+    "seed-playthrough": "tsx scripts/seed-playthrough.ts"
   },
   "dependencies": {
     "@google/genai": "^2.11.0",

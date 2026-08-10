@@ -196,7 +196,8 @@ The browser never imports `lib/` at runtime. `lib/supabase.ts` holds `SERVICE_RO
 
 | Route | Wraps | Notes |
 |---|---|---|
-| `POST /api/session` | `startNewGame` | Mints a `game_state` row; the returned id is the only save handle |
+| `POST /api/session` | `startNewGame` | Takes a `username`; 409 if taken, 400 if malformed, both with a `field` so the client shows them under the input |
+| `POST /api/session/resume` | `getGameStateByUsername` | Finds a save from its name. The only route taking a username without a session id |
 | `GET /api/session/:id` | `getGameState` | Resume after a refresh |
 | `POST /api/day/start` | `startDay` | Schedule + which events fire in which segment |
 | `POST /api/chat` | `sendPlayerMessage` | ~2s per reply (median; 1.3s when the greeting gate skips retrieval) |
@@ -205,6 +206,10 @@ The browser never imports `lib/` at runtime. `lib/supabase.ts` holds `SERVICE_RO
 | `POST /api/confess` | `confess` | Ends the run |
 
 There are no accounts. Whoever holds the session id holds the save, which is why it's a UUID; the client keeps it in `localStorage`.
+
+A save also carries a player-chosen **username**, so a run can be found again from another browser or device. It is an **identifier, not a password** — anyone who guesses one can open that run, and because confessing is permanent they can end it. That buys a one-field flow and was chosen deliberately; it's stated in the migration, the schema comment and the UI copy so nothing gets built on top of it that needs real authentication. `localStorage` is still the everyday path; the username is recovery.
+
+Uniqueness is decided by a case-insensitive index and the resulting `23505` violation is caught, rather than a check-then-insert — two players claiming the same name in the same moment would both see it free under a pre-check, so the index is the only thing that can actually decide. `normalizeUsername` lives in its own module because create and resume must normalise identically; if they disagreed, a name could be claimable but not findable.
 
 **End of day streams rather than returning once.** Measured runs range from **1m40s to 4m24s** — that spread is raw LLM latency, with no retries or model failures in between — and silence for that long is indistinguishable from a hang. So `endDay` emits a stage as each phase actually begins (`scoring`, `reflecting`, `diary`, `saving`) and the route forwards them as newline-delimited JSON. The progress shown is real, not a timed guess. Measuring also located the cost: **diary generation alone is ~60s**, and everything else is comparatively quick.
 
@@ -249,6 +254,8 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - Confessing explains itself and asks first — it was a bare link, one click from permanently ending a thirty-day run
 - Chat messages carry the in-game time they were sent
 - Static corpus reduced 71 → 37 chunks, all of them reachable: the `events` and `adrian` pools were retrieved by nothing (see [Unreachable chunks](#unreachable-chunks)). Adrian is now a per-character prompt block in `lib/adrian-profile.ts`
+- A pre-game explainer (`app/components/HowToPlay.tsx`) between Begin and day 1 — who you are, the shape of a day, time as the only currency, **there is no meter**, events in free text, and how it ends. The landing copy set a tone but taught none of it, and the hidden affection meter in particular reads as a missing UI rather than a design if nobody says so
+- Username saves — New game / Continue, so a run survives a cleared browser or a change of device
 - Characters know what time it is (`WHEN THIS IS HAPPENING` in `buildPrompt`) — day number, clock, time-of-day phrase, and current activity, sent from the client since the live clock is client-side state. See [Temporal context](#temporal-context)
 - Knowledge chunks are only written when the day actually revealed something (`notable`), and the knowledge prompt receives correctly attributed turns — it was fed a transcript with Adrian's own lines labelled as the NPC's, and guessed wrong about a third of the time
 - Knowledge chunks carry `[Day N]` in their content, so a memory can be placed in time and near-identical daily updates have something separating them
@@ -259,13 +266,12 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - The ending explains itself (`lib/ending-reflection.ts`) — the accumulated diary and knowledge chunks are finally read back to the player instead of only feeding retrieval. See [Why the ending happened](#why-the-ending-happened). Verified against a seeded end-state (`scripts/tmp-test-ending-reflection.ts`) and, for the first time, in the browser: the closing entry, the collapsible archive, and the conditional Yuki epilogue all render
 
 **Next up:**
-- **Split end-of-day into two requests.** 210s average and 242s worst against Vercel Hobby's *hard* 300s ceiling. The only remaining item that can break a live game rather than merely look unfinished
-- **Consolidate old knowledge chunks.** Now evidence-backed — see [Is per-playthrough memory searchable?](#is-per-playthrough-memory-searchable). Worth re-measuring first: the 0.905 figure was taken from a corpus where a third of the chunks were misattributed, so it isn't a clean baseline
+- **Play a full run.** Day 2 onward has never completed on a working build — the one previous multi-day attempt was on the build with the double-fire bug and had to be deleted. Five things have changed underneath the game since (the day-scoring guard, attribution, `notable`, temporal context, retention) and none have been exercised across a real run. Arc continuation across days, the 15-real-minutes-per-in-game-hour clock, and an ending reached by playing rather than seeding are all still unknown
+- **Mobile.** Built desktop-first and never opened on a phone, including the new pre-game screens and the username field. A shared link mostly gets opened on phones
+- **Split end-of-day into two requests.** 210s average and 242s worst against Vercel Hobby's *hard* 300s ceiling. Not urgent, but it's the one thing that can strand a real player
+- **Re-measure clustering, then consolidate.** The 0.905 figure came from a corpus where a third of the chunks were misattributed, so it isn't a clean baseline — `npm run seed-playthrough` and `npm run eval-memory` rebuild it in about twenty minutes
 - **Measure retrieval quality on dynamic memory.** Clustering shows the chunks are hard to tell *apart*; it does not show a real query picks the *wrong* one. Needs paraphrase queries — an LLM call per chunk, or hand-written labels
-- **Play a full run.** Day 2 onward has never completed in the UI on a working build, the 15-real-minutes-per-in-game-hour clock has never been sat through, and no ending has been reached by playing rather than seeding
 - **Thin corpora for Shiori and Yuki** — 6 and 7 chunks, so `k=5` returns most of the pool and retrieval barely selects. Prose to write, not code
-- Responsive layout — built desktop-first and never opened on a phone
-- Mobile/responsive pass — the pre-game screens and the game itself are still desktop-only
 
 All five endings are fully implemented — there is no missing mechanic behind any of them.
 
@@ -281,6 +287,7 @@ npm run ingest         # re-embed lore/ into lore_chunks (idempotent)
 npm run eval-retrieval # score retrieval against eval/retrieval-golden.json
 npm run test-query-intent  # held-out check on the greeting gate
 npm run eval-memory        # clustering of a playthrough's generated memory
+npm run seed-playthrough   # build a 10-day session by running the real pipeline (~20 min)
 npm run typecheck
 ```
 
@@ -577,7 +584,7 @@ The proxy must **pipe the response body through untouched**. End of day streams 
 
 Two separately-deployed projects with a contract between them, so order matters:
 
-1. **Apply migrations** (`supabase/migrations/`). Every one so far is additive — a nullable column, a generated column, new functions — so applying them ahead of the code is harmless. The reverse is not: `lib/chat.ts` calls `match_lore_hybrid` unconditionally, so code deployed before its migration means **every chat 500s**.
+1. **Apply migrations** (`supabase/migrations/` — there are four: hybrid search, the end-of-day claim, session retention, username saves). Every one so far is additive — a nullable column, a generated column, new functions — so applying them ahead of the code is harmless. The reverse is not: `lib/chat.ts` calls `match_lore_hybrid` unconditionally, so code deployed before its migration means **every chat 500s**.
 2. **Deploy this repo** (the engine).
 3. **Deploy the personal site** (the playground).
 
