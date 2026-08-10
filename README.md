@@ -250,6 +250,7 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - Chat messages carry the in-game time they were sent
 - Static corpus reduced 71 → 37 chunks, all of them reachable: the `events` and `adrian` pools were retrieved by nothing (see [Unreachable chunks](#unreachable-chunks)). Adrian is now a per-character prompt block in `lib/adrian-profile.ts`
 - Characters know what time it is (`WHEN THIS IS HAPPENING` in `buildPrompt`) — day number, clock, time-of-day phrase, and current activity, sent from the client since the live clock is client-side state. See [Temporal context](#temporal-context)
+- Knowledge chunks are only written when the day actually revealed something (`notable`), and the knowledge prompt receives correctly attributed turns — it was fed a transcript with Adrian's own lines labelled as the NPC's, and guessed wrong about a third of the time
 - Knowledge chunks carry `[Day N]` in their content, so a memory can be placed in time and near-identical daily updates have something separating them
 - Greeting gate (`lib/query-intent.ts`) — decides whether a message needs memory before anything is embedded, after measuring that neither cosine nor the fused score can separate greetings from real short questions. Clean negatives 0% → 100%, validated on 50 held-out messages (`npm run test-query-intent`)
 - Hybrid retrieval (`match_lore_hybrid`) — Postgres full-text search fused with vector search via Reciprocal Rank Fusion, now the production path in `lib/chat.ts`. Rank-1 hits on the golden set went from 8 of 17 to 13 of 17. See [Hybrid retrieval](#hybrid-retrieval)
@@ -452,7 +453,18 @@ The first attempt at that prompt **over-corrected to zero knowledge chunks acros
 
 The null chunks were semantically *distinct* from the substantive ones, so they were diluting the measurement. Strip them and what remains is the real finding: the substantive chunks converge hard on a single register — *"Adrian did X, she took that to mean Y"* — regardless of how different the days were. Consolidation is the fix for that, and it is now cleanly evidenced rather than inferred from a confounded number.
 
-**A separate defect surfaced while reading the output, and is not fixed.** Two of six chunks attribute the wrong person's words to Adrian. Day 1's exchange was Adrian asking *"where do you usually ride?"* and Hiyori answering; the chunk reads *"Adrian shared his usual cycling routes."* Day 3's was Yuki saying she dreams in indifference curves; the chunk reads *"Adrian admitted that economics was so pervasive he had even begun dreaming in indifference curves."* The prompt already warns about subject confusion in bold terms and it still happens on thin exchanges — so a third of this corpus is confidently wrong about who did what.
+**A separate defect surfaced while reading the output, and turned out to be a one-word bug.** Two of six chunks attributed the wrong person's words to Adrian: day 1's exchange was Adrian asking *"where do you usually ride?"* and Hiyori answering, and the chunk read *"Adrian shared his usual cycling routes."*
+
+The prompt wasn't at fault — its input was corrupted. `lib/batch-eval.ts` mapped every message with a hardcoded `role: "npc"`, discarding the real role from the database, so the knowledge prompt received a transcript where **Adrian's own lines were labelled as the NPC's**:
+
+```
+Hiyori: shiori said you cycle — where do you usually ride?     <- actually Adrian
+Hiyori: east coast mostly, sometimes bukit timah...
+```
+
+It was then asked what she learned *about Adrian* and had to guess which half was his. `buildChatAffectionDelta` reads the same arrays, so affection was being scored off the same mislabelled transcript.
+
+Fixed by passing `m.role` through. Both exchanges now read correctly — *"Adrian brought up her cycling based on something Shiori had mentioned — Hiyori noted that he's actually paying attention to the details people share."*
 
 The honest limitation stands: clustering shows the chunks are hard to tell apart, not that a real query picks the wrong one. That needs paraphrase queries.
 
@@ -482,8 +494,6 @@ Grouped by what each change actually attacks. Ordered so the cheap independent o
 12. **Separate the pools, or weight by `source_file`.** Diary entries dominate; structured lore rarely surfaces even when it's the answer. `cycling-multi` measures exactly this.
 13. **Recency in a re-rank pass.** Cosine has no reason to prefer day 25 over day 3. Depends on (1).
 14. **Cap per source type** — max 2 diary + 2 knowledge + 2 static rather than top-5 overall.
-
-18. **Subject confusion in knowledge chunks.** Two of six chunks in a ten-day run credit Adrian with words another character said. The prompt already warns about this explicitly and it still happens on thin exchanges — so a third of a playthrough's memory can be confidently wrong about who did what. Worse than clustering, because a wrong memory is actively misleading rather than merely hard to find.
 
 **The prompt — how retrieved text is presented**
 

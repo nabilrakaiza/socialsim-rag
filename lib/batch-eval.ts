@@ -189,9 +189,25 @@ export async function runEndOfDayBatchEval(input: BatchEvalInput): Promise<Batch
   const gameState = await getGameState(input.sessionId);
   const messages = await getMessagesForDay(input.sessionId, gameState.current_day);
 
-  const yukiMessages: DialogueTurn[] = messages.filter(m => m.character == "yuki").map(m => ({role: "npc", content: m.content}));
-  const shioriMessages: DialogueTurn[] = messages.filter(m => m.character == "shiori").map(m => ({role: "npc", content: m.content}));
-  const hiyoriMessages: DialogueTurn[] = messages.filter(m => m.character == "hiyori").map(m => ({role: "npc", content: m.content}));
+  // m.role, NOT a hardcoded "npc". Every message used to be relabelled as the
+  // NPC's, so the knowledge prompt received a transcript where Adrian's own
+  // lines were attributed to her:
+  //
+  //   Hiyori: shiori said you cycle — where do you usually ride?   <- Adrian
+  //   Hiyori: east coast mostly, sometimes bukit timah...
+  //
+  // It was then asked what she learned ABOUT ADRIAN and had to guess which
+  // half was his. It guessed wrong roughly a third of the time — one ten-day
+  // run produced "Adrian shared his usual cycling routes" (she cycles, he
+  // asked) and credited him with Yuki's line about dreaming in indifference
+  // curves. buildChatAffectionDelta reads the same arrays, so affection was
+  // being scored off the same mislabelled transcript.
+  const forCharacter = (character: NPCCharacter): DialogueTurn[] =>
+    messages.filter((m) => m.character === character).map((m) => ({ role: m.role, content: m.content }));
+
+  const yukiMessages = forCharacter('yuki');
+  const shioriMessages = forCharacter('shiori');
+  const hiyoriMessages = forCharacter('hiyori');
 
   input.onProgress?.('reflecting');
 
