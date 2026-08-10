@@ -18,7 +18,7 @@ import 'dotenv/config';
 
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { chunkLoreFile, LoreChunk } from '../lib/chunking';
+import { chunkLoreFile, isRetrievableLoreFile, LoreChunk } from '../lib/chunking';
 import { embedText } from '../lib/embeddings';
 import { deleteStaticLoreChunks, insertLoreChunks } from '../lib/supabase';
 
@@ -32,10 +32,11 @@ async function main() {
   const removed = await deleteStaticLoreChunks();
   console.log(`cleared ${removed} existing static chunks (dynamic per-session chunks untouched)`);
 
-  const files = readdirSync(LORE_DIR);
-  const loreFiles = files.filter((f) => {
-    return f.endsWith(".json") || f.endsWith(".txt");
-  });
+  // Filtered rather than "every .txt and .json": events.json and
+  // adrian_profile.txt were ingested for weeks and retrieved by nothing, since
+  // retrieval only ever searches one of the three NPC pools. That was 34 of 71
+  // chunks embedded and unreachable.
+  const loreFiles = readdirSync(LORE_DIR).filter(isRetrievableLoreFile);
 
   const chunkedFiles: LoreChunk[][] = loreFiles.map((f) => chunkLoreFile(join(LORE_DIR, f), readFileSync(join(LORE_DIR, f), 'utf-8')));
 

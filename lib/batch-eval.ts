@@ -119,11 +119,25 @@ async function buildKnowledgeChunk(
   if (turns.length === 0 && events.length === 0) return null;
 
   const update = await withRetry(() => generateKnowledgeUpdate(character, turns, events));
-  const embedding = await withRetry(() => embedText(update.content));
+
+  // The day goes INTO the content, not just source_file. source_file is a
+  // filing label: buildPrompt only ever passes chunk.content to the model, and
+  // the embedding is computed from content alone — so a day recorded only
+  // there is invisible to both the reader and the search. Without this a
+  // character can recall that Adrian shared his umbrella and have no way to
+  // know whether that was yesterday or three weeks ago.
+  //
+  // It also varies the text. Every knowledge chunk comes from one prompt with
+  // one instruction, so by day 30 a character has ~30 chunks all reading
+  // "Adrian did X — she took that to mean Y". That is a corpus engineered to
+  // embed into a tight cluster; a distinct leading token is the cheapest
+  // available separation.
+  const dated = `[Day ${day}] ${update.content}`;
+  const embedding = await withRetry(() => embedText(dated));
 
   return {
     chunk: {
-      content: update.content,
+      content: dated,
       is_static: false,
       session_id: sessionId,
       character,

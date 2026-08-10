@@ -160,7 +160,7 @@ This lets retrieval pull `is_static = true OR session_id = current_session` in o
 Hybrid paragraph + section-heading split:
 - Backstory/knowledge/interest files → split on `---` section headers
 - Diary entries → one chunk per entry (already self-contained)
-- `events.json` → one chunk per event object
+- `events.json` → not chunked. It's read directly by `lib/events.ts`, and what a character learns from an event she lived through reaches her as a dynamic knowledge chunk instead (see [Unreachable chunks](#unreachable-chunks))
 
 Target size: 150–400 tokens per chunk.
 
@@ -238,6 +238,8 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - End of day can be retried after a failure, rather than stranding the player on a progress panel that never resolves
 - Confessing explains itself and asks first — it was a bare link, one click from permanently ending a thirty-day run
 - Chat messages carry the in-game time they were sent
+- Static corpus reduced 71 → 37 chunks, all of them reachable: the `events` and `adrian` pools were retrieved by nothing (see [Unreachable chunks](#unreachable-chunks)). Adrian is now a per-character prompt block in `lib/adrian-profile.ts`
+- Knowledge chunks carry `[Day N]` in their content, so a memory can be placed in time and near-identical daily updates have something separating them
 - Greeting gate (`lib/query-intent.ts`) — decides whether a message needs memory before anything is embedded, after measuring that neither cosine nor the fused score can separate greetings from real short questions. Clean negatives 0% → 100%, validated on 50 held-out messages (`npm run test-query-intent`)
 - Hybrid retrieval (`match_lore_hybrid`) — Postgres full-text search fused with vector search via Reciprocal Rank Fusion, now the production path in `lib/chat.ts`. Rank-1 hits on the golden set went from 8 of 17 to 13 of 17. See [Hybrid retrieval](#hybrid-retrieval)
 - Retrieval evaluation harness (`npm run eval-retrieval`) — 23 hand-labelled cases scored on hit rate, MRR, clean negatives and similarity spread, with a saved baseline and per-run deltas. Labels are validated against the live corpus before scoring, since a label matching nothing scores identically to a retrieval failure
@@ -269,7 +271,7 @@ npm run test-query-intent  # held-out check on the greeting gate
 npm run typecheck
 ```
 
-Playing writes real rows to Supabase — `game_state`, `messages`, `events_log`, and per-session `lore_chunks`. They're scoped by `session_id`, so clearing test playthroughs never touches the 71 static lore rows (`is_static = true`).
+Playing writes real rows to Supabase — `game_state`, `messages`, `events_log`, and per-session `lore_chunks`. They're scoped by `session_id`, so clearing test playthroughs never touches the 37 static lore rows (`is_static = true`).
 
 Two pacing notes that look like bugs but aren't: a chat reply takes **~14s**, and free segments run at **one in-game hour per fifteen real minutes** — use *skip ahead* unless you're specifically testing the clock.
 
@@ -374,15 +376,35 @@ Lexical rather than an LLM classifier: chat already runs ~14s, and spending a ro
 That test treats the two error kinds asymmetrically, and only one fails the run. A greeting that slips through is wasteful but no worse than the old behaviour. A real question that gets blocked costs the character access to something she genuinely knows — so the run fails only on that direction.
 
 
+### Unreachable chunks
+
+`matchLoreChunks` and `match_lore_hybrid` are only ever called with an `NPCCharacter` — `'hiyori' | 'shiori' | 'yuki'`. Anything filed under another character is unreachable by construction, and two pools were:
+
+| pool | chunks | fate |
+|---|---|---|
+| `character='events'` | 30 | removed from ingestion |
+| `character='adrian'` | 4 | moved into the prompt |
+
+That was **34 of 71 chunks — 48% of the static corpus — chunked, embedded, stored and searched by nothing.** The corpus is now 37 chunks, all reachable.
+
+**The event chunks are gone rather than wired in.** Each embedded its own `affection_outcomes.high/mid/low`, so retrieving one would have handed a character the scoring rubric for an event that hadn't happened yet. They were also redundant: what a character learns from an event she was actually present for already reaches her through the dynamic knowledge chunk `lib/batch-eval.ts` writes at end of day, attributed by `participant`. `events.json` is still read directly by `lib/events.ts` — it just isn't embedded.
+
+**Adrian's profile became a fixed prompt block** (`lib/adrian-profile.ts`). Retrieval is the wrong mechanism for it: similarity search exists to pick the relevant few from many, and Adrian is relevant to every single turn, so there is nothing to select. As a block it also stops competing with genuine memories for the five available slots.
+
+It is **split per character**, not shared, because the file is: Shiori knows he's been asking about Hiyori more than casually, Yuki remembers his coffee order from secondary school. Merging those would break the siloed-knowledge rule the design rests on. The `BACKGROUND` section is deliberately excluded from all three — it reads *"He met Hiyori through Shiori. He didn't think much of it at first. That has changed."* That's Adrian's internal state, and putting it in Hiyori's prompt would tell her how he feels, which is the one thing the whole thirty-day game is built on her not knowing.
+
+`lib/chunking.ts` now throws instead of defaulting when a lore file doesn't map to an NPC. A silent fallback is how 34 chunks ended up in pools nothing could search.
+
+
 ### What to fix
 
 Grouped by what each change actually attacks. Ordered so the cheap independent ones land before the two big ones.
 
 **The corpus — what gets stored**
-1. **Put the day inside knowledge chunk content.** It currently lives only in `source_file` as `dynamic-day-N`, which is neither embedded nor shown to the model, so a memory can't be placed in time and identical-format chunks have nothing to tell them apart.
+1. ~~**Put the day inside knowledge chunk content.**~~ **Done** — knowledge chunks are now written as `[Day N] <update>`, so the day is both embedded and visible to the model. It was previously only in `source_file`, which is neither.
 2. **Enforce the diary's `[Day N — In-game]` tag** rather than asking the model for it in the prompt — there's no validation today.
 3. **Persist in-game time.** `messages` has no time column; the timestamps in chat are derived client-side and lost on reload.
-4. **Resolve the two dead pools.** `character='events'` (30 chunks) and `character='adrian'` (4) are retrieved by *nothing* — `matchLoreChunks` is only ever called with an `NPCCharacter`. That's 48% of the static corpus embedded and unreachable. The events chunks also embed `affection_outcomes`, so they're spoiler text and can't be wired in as-is.
+4. ~~**Resolve the two dead pools.**~~ **Done** — see [Unreachable chunks](#unreachable-chunks).
 5. **Re-chunk the long files.** Chunk sizes run 91–1521 chars, a 16× spread; long chunks average out to a mushy centroid and match everything weakly.
 6. **Consolidate old knowledge chunks.** By day 30 each character has ~30 chunks from one prompt in one register — engineered to cluster tightly.
 

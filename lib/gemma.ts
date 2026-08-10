@@ -24,6 +24,7 @@
 
 import { GoogleGenAI } from '@google/genai';
 import type { MatchedChunk } from './supabase';
+import { adrianProfileFor } from './adrian-profile';
 import type { RelationshipStage } from './relationship';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY ?? '' });
@@ -116,6 +117,9 @@ function buildPrompt(
   return `You are roleplaying as ${name} in a narrative dating simulation. Stay fully in character — respond the way ${name} would actually speak, not as an AI assistant.
 
 PERSONALITY: ${PERSONAS[character]}
+
+WHAT ${name.toUpperCase()} KNOWS ABOUT ADRIAN (the player) — stable background, not something he said today:
+${adrianProfileFor(character)}
 
 CURRENT RELATIONSHIP STAGE WITH THE PLAYER: ${relationshipStage}
 Let this stage guide your warmth/guardedness — earlier stages should read more reserved, later stages more open. Never state the stage name or any numeric score out loud.

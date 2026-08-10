@@ -4,16 +4,27 @@
 // Turns a raw lore file into an array of LoreChunk objects
 // ready for embedding + storage.
 //
-// Scope (per our chat): this is for the STATIC lore files only
-// (adrian_profile.txt, hiyori_backstory.txt, hiyori_interests.txt,
-// shiori_knowledge.txt, yuki_knowledge.txt, hiyori_diary.txt,
-// events.json). Dynamic content generated during gameplay will
-// be emitted already chunk-shaped, bypassing this file entirely.
+// Scope: the retrievable static lore files only — hiyori_backstory.txt,
+// hiyori_interests.txt, hiyori_diary.txt, shiori_knowledge.txt,
+// yuki_knowledge.txt. Dynamic content generated during gameplay is emitted
+// already chunk-shaped and bypasses this file entirely.
+//
+// events.json and adrian_profile.txt used to be chunked here and no longer
+// are: nothing could retrieve either (see LoreChunk.character), the event
+// chunks embedded their own affection_outcomes and so were scoring-rubric
+// spoilers, and Adrian's profile is now a fixed prompt block in
+// lib/adrian-profile.ts. What a character learns from an event she lived
+// through still reaches her — via the dynamic knowledge chunk that
+// lib/batch-eval.ts writes at end of day.
 // ============================================================
 
 export interface LoreChunk {
   content: string;
-  character: 'hiyori' | 'shiori' | 'yuki' | 'adrian' | 'events';
+  // Only the three NPCs. Retrieval is only ever called with one of these
+  // (matchLoreChunks/matchLoreHybrid take an NPCCharacter), so a chunk filed
+  // under anything else is unreachable by construction — which is exactly what
+  // happened to the 'adrian' and 'events' chunks before they were removed.
+  character: 'hiyori' | 'shiori' | 'yuki';
   source_file: string;
   chunk_index: number;
   // Widened from the literal `true` this started as: chunkLoreFile below
@@ -25,21 +36,12 @@ export interface LoreChunk {
   section_title?: string;
 }
 
-interface EventData {
-  id: string;
-  title: string;
-  description: string;
-  stage_required: string;
-  affection_required: number;
-  type: string;
-  duration_days: number;
-  randomized_details: Record<string, string[]>;
-  player_action_prompt: string;
-  affection_outcomes: {
-    high: string;
-    mid: string;
-    low: string;
-  };
+// Which lore files carry a character's memory, and so belong in the vector
+// store. Everything else in lore/ is reference material for the game engine or
+// for humans — events.json is read directly by lib/events.ts, diary_system.md
+// documents the trigger rules, adrian_profile.txt is a prompt block.
+export function isRetrievableLoreFile(filename: string): boolean {
+  return /\.txt$/.test(filename) && /hiyori|shiori|yuki/.test(filename);
 }
 
 // ------------------------------------------------------------
@@ -48,12 +50,17 @@ interface EventData {
 // ------------------------------------------------------------
 export function chunkLoreFile(filePath: string, rawText: string): LoreChunk[] {
   // derive character from the filename prefix (hiyori_, shiori_, etc.)
+  //
+  // Throws rather than falling back: a silent default is how 34 chunks ended
+  // up filed under characters nothing could ever search for. scripts/ingest.ts
+  // filters to retrievable files before calling this, so reaching the throw
+  // means a new lore file was added without deciding whose memory it belongs
+  // to.
   function getCharacter(filename: string): LoreChunk['character'] {
     if (filename.includes('hiyori')) return 'hiyori';
     if (filename.includes('shiori')) return 'shiori';
     if (filename.includes('yuki')) return 'yuki';
-    if (filename.includes('adrian')) return 'adrian';
-    return 'events';
+    throw new Error(`${filename} doesn't belong to an NPC — see isRetrievableLoreFile`);
   }
 
   // Strip any directory prefix. Everything below dispatches on and stores this
@@ -63,20 +70,7 @@ export function chunkLoreFile(filePath: string, rawText: string): LoreChunk[] {
   const pathParts = filePath.split("/");
   const filename = pathParts[pathParts.length - 1];
 
-  if (filename.endsWith(".json")){
-    const rawChunks = chunkEvents(rawText);
-    const loreChunks: LoreChunk[] = rawChunks.map((chunk, index) => ({
-        ...chunk,
-        character: getCharacter(filename),
-        source_file: filename,
-        chunk_index: index,
-        is_static: true
-    }))
-
-    return loreChunks
-  }
-
-  else if (filename.includes("diary")){
+  if (filename.includes("diary")){
     const rawChunks = chunkDiary(rawText);
     const loreChunks: LoreChunk[] = rawChunks.map((chunk, index) => ({
         ...chunk,
@@ -105,11 +99,11 @@ export function chunkLoreFile(filePath: string, rawText: string): LoreChunk[] {
 
 // ------------------------------------------------------------
 // Strategy 1: section-header files (backstory / interests /
-// knowledge / profile .txt files). Delimiter looks like:
+// knowledge .txt files). Delimiter looks like:
 //   --- PERSONALITY ---   (on its own line)
 // Text before the first header (e.g. the name/stats block in
-// adrian_profile.txt and shiori_knowledge.txt) becomes its own
-// chunk with no section_title.
+// shiori_knowledge.txt) becomes its own chunk with no
+// section_title.
 // ------------------------------------------------------------
 function chunkSections(rawText: string): { content: string; section_title?: string }[] {
   const regex = /^---\s*(.+?)\s*---$/gm
@@ -157,19 +151,3 @@ function chunkDiary(rawText: string): { content: string; section_title?: string 
   return diaryChunks;
 }
 
-// ------------------------------------------------------------
-// Strategy 3: events.json — one chunk per event object.
-// content is a natural-language paragraph (not raw JSON) so it
-// matches how a player would actually phrase a query.
-// randomized_details is skipped — it's template placeholders
-// for the game engine, not something a player would search for.
-// ------------------------------------------------------------
-function chunkEvents(rawText: string): { content: string; section_title?: string }[] {
-  const parsedJSON: {events: EventData[]} = JSON.parse(rawText);
-  const eventChunks: {content: string; section_title?: string}[] = parsedJSON.events.map((event) => ({
-    content: `${event.title}. ${event.description}\nIf handled well: ${event.affection_outcomes.high}\nIf handled decently: ${event.affection_outcomes.mid}\nIf handled poorly: ${event.affection_outcomes.low}`,
-    section_title: event.title
-  }))
-
-  return eventChunks;
-}
