@@ -1,10 +1,10 @@
 {
-  "label": "hybrid rrf_k=3 2026-08-10 03:13",
+  "label": "hybrid rrf_k=3 2026-08-10 03:19",
   "k": 5,
   "threshold": 0.5,
   "hitRate": 0.8823529411764706,
-  "mrr": 0.5978260869565217,
-  "cleanNegatives": 0,
-  "meanSpread": 0.09604492343532842,
-  "meanReturned": 5
+  "mrr": 0.8586956521739131,
+  "cleanNegatives": 1,
+  "meanSpread": 0.10595145297248963,
+  "meanReturned": 3.6956521739130435
 }

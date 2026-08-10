@@ -24,6 +24,7 @@ import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
 import { embedText } from '../lib/embeddings';
 import { matchLoreChunks, matchLoreHybrid } from '../lib/supabase';
+import { needsRetrieval } from '../lib/query-intent';
 import type { MatchedChunk } from '../lib/supabase';
 import type { NPCCharacter } from '../lib/gemma';
 
@@ -324,6 +325,12 @@ async function runCase(
   hybrid: boolean,
   rrfK: number
 ): Promise<CaseResult> {
+  // The same gate lib/chat.ts applies. Runs before embedding, so a greeting
+  // costs neither an embedding call nor a query.
+  if (!needsRetrieval(kase.query)) {
+    return scoreCase(kase, []);
+  }
+
   const embedding = await embedText(kase.query);
   // sessionId null = static lore only. Dynamic memory is per-playthrough and
   // can't be labelled ahead of time, so the golden set measures the base

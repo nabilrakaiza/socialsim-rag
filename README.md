@@ -238,13 +238,14 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - End of day can be retried after a failure, rather than stranding the player on a progress panel that never resolves
 - Confessing explains itself and asks first — it was a bare link, one click from permanently ending a thirty-day run
 - Chat messages carry the in-game time they were sent
+- Greeting gate (`lib/query-intent.ts`) — decides whether a message needs memory before anything is embedded, after measuring that neither cosine nor the fused score can separate greetings from real short questions. Clean negatives 0% → 100%, validated on 50 held-out messages (`npm run test-query-intent`)
 - Hybrid retrieval (`match_lore_hybrid`) — Postgres full-text search fused with vector search via Reciprocal Rank Fusion, now the production path in `lib/chat.ts`. Rank-1 hits on the golden set went from 8 of 17 to 13 of 17. See [Hybrid retrieval](#hybrid-retrieval)
 - Retrieval evaluation harness (`npm run eval-retrieval`) — 23 hand-labelled cases scored on hit rate, MRR, clean negatives and similarity spread, with a saved baseline and per-run deltas. Labels are validated against the live corpus before scoring, since a label matching nothing scores identically to a retrieval failure
 - `lore_chunks.source_file` stores the bare filename instead of an absolute path, so anything comparing against it works on any machine and on Vercel
 - The ending explains itself (`lib/ending-reflection.ts`) — the accumulated diary and knowledge chunks are finally read back to the player instead of only feeding retrieval. See [Why the ending happened](#why-the-ending-happened). Verified against a seeded end-state (`scripts/tmp-test-ending-reflection.ts`) and, for the first time, in the browser: the closing entry, the collapsible archive, and the conditional Yuki epilogue all render
 
 **Next up:**
-- **Retrieval quality** — hybrid search landed (MRR 0.471 → 0.598, rank-1 hits 8/17 → 13/17), but **clean negatives is still 0%**: every greeting still returns five chunks presented to the model as things the character knows. See [Known problems with retrieval](#known-problems-with-retrieval) for the remaining ranked fixes
+- **Retrieval quality** — hybrid search and the greeting gate landed: MRR 0.471 → 0.859, clean negatives 0% → 100%, chunks returned 4.8 → 3.7. Two cases still miss (`lunch-invite`, `apology-late`) and the remaining ranked fixes are in [Known problems with retrieval](#known-problems-with-retrieval)
 - **Temporal context in prompts** — characters have no idea what day or time it is, and it shows in what they say
 - Split end-of-day into two requests, so neither approaches Vercel's 300s Hobby ceiling. This is the one item that can break a live game rather than merely look unfinished
 - Play it. The 15-real-minutes-per-in-game-hour rate has never actually been sat through, only skipped past, so it's unvalidated
@@ -264,6 +265,7 @@ Needs `SUPABASE_URL`, `SERVICE_ROLE` and `GOOGLE_API_KEY` in `.env`.
 npm run dev            # the game, standalone, on :3000
 npm run ingest         # re-embed lore/ into lore_chunks (idempotent)
 npm run eval-retrieval # score retrieval against eval/retrieval-golden.json
+npm run test-query-intent  # held-out check on the greeting gate
 npm run typecheck
 ```
 
@@ -314,14 +316,14 @@ Six of the 23 cases are **negatives that expect nothing at all**. Without them, 
 
 **Results.** Vector-only was the baseline; hybrid retrieval (below) is now what the game runs:
 
-| | vector-only | hybrid (rrf_k=3) |
-|---|---|---|
-| hit rate (positive) | 88% | 88% |
-| MRR | 0.471 | **0.598** |
-| positives at rank 1 | 8 of 17 | **13 of 17** |
-| clean negatives | 0% | 0% |
-| mean spread | 0.067 | 0.096 |
-| mean chunks returned | 4.8 | 5.0 |
+| | vector-only | + hybrid | + greeting gate |
+|---|---|---|---|
+| hit rate (positive) | 88% | 88% | 88% |
+| MRR | 0.471 | 0.598 | **0.859** |
+| positives at rank 1 | 8 of 17 | **13 of 17** | 13 of 17 |
+| clean negatives | 0% | 0% | **100%** |
+| mean spread | 0.067 | 0.096 | 0.106 |
+| mean chunks returned | 4.8 | 5.0 | **3.7** |
 
 Two results stood out on the vector-only run. **Clean negatives is 0%** — all six greetings and acknowledgements return a full set of chunks, and hybrid doesn't fix that (see below). And **mean chunks returned was 4.8 of a possible 5**, confirming the 0.5 threshold filters essentially nothing.
 
@@ -357,6 +359,21 @@ One surprise: `"durian?"` — a single word — ranks its chunk **first**, becau
 **What it fixed and what it didn't.** Rank-1 hits went from 8 of 17 to 13 of 17, and `noticed-tired` went from unretrieved to rank 2. Hit rate is unchanged at 88%: `lunch-invite` regressed from rank 3 to unretrieved, trading places with `noticed-tired` — the predicted cost of FTS pointing at the wrong lunch chunk. `apology-late` still misses. **Clean negatives is still 0%**, and hybrid was never going to fix it: `"morning"` matches two chunks lexically, so the greetings still return a full set. That needs item 8.
 
 
+### Knowing when not to retrieve
+
+`lib/query-intent.ts` decides whether a message needs memory at all, before anything is embedded. `lib/chat.ts` and the eval harness both apply it.
+
+**Why it isn't a score threshold.** Two cheaper approaches were measured and both failed. Cosine similarity: greetings scored 0.515–0.592 against 0.547–0.574 for short real questions, so the ranges overlap and two greetings outscored *every* real question. The fused RRF score after hybrid landed: the best possible cut keeps 16/17 positives but still admits 3/6 greetings. Neither population is separable by score, so the decision has to come from the message itself.
+
+**The rule is subtractive**, not a pattern match: strip every word that carries no information need — English function words plus the closed classes of conversational speech (greetings, farewells, acknowledgements, politeness, laughter) — and see whether anything is left. *"sorry i'm late"* keeps `late` and retrieves, which is right: the chunk naming lateness as a deal-breaker is exactly what should ground that reply. *"sorry!"* alone keeps nothing and doesn't. Multi-word farewells get their own anchored phrase list, because *"see you tomorrow"* leaves `tomorrow`, a word that matters in *"what are you doing tomorrow"*.
+
+Lexical rather than an LLM classifier: chat already runs ~14s, and spending a round trip to recognise "morning" isn't a trade worth making. The check runs before embedding, so a greeting now costs **no API call at all**.
+
+**Validating it honestly.** The rule was written while looking at the golden set's six negatives, so 6/6 there proves nothing — that's the fixture it was built against. `npm run test-query-intent` scores 50 held-out messages that appear nowhere in the golden set: **18/18 real questions correctly retrieve, 32/32 greetings correctly skip.**
+
+That test treats the two error kinds asymmetrically, and only one fails the run. A greeting that slips through is wasteful but no worse than the old behaviour. A real question that gets blocked costs the character access to something she genuinely knows — so the run fails only on that direction.
+
+
 ### What to fix
 
 Grouped by what each change actually attacks. Ordered so the cheap independent ones land before the two big ones.
@@ -372,7 +389,7 @@ Grouped by what each change actually attacks. Ordered so the cheap independent o
 **The query — what gets asked**
 
 7. **Embed more than the bare message** (last 2–3 turns). Still the single change most likely to fix it outright. `GoldenCase.context` exists for scoring this against the same set.
-8. **Skip retrieval for greetings.** Six negative cases already measure this.
+8. ~~**Skip retrieval for greetings.**~~ **Done** — see [Knowing when not to retrieve](#knowing-when-not-to-retrieve) below.
 9. **HyDE / query rewriting.** Real gains on short queries, but it buys with an LLM call what hybrid search gives free.
 
 **The ranking — what wins**

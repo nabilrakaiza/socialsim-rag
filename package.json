@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "ingest": "tsx scripts/ingest.ts",
     "test-retrieval": "tsx scripts/test-retrieval.ts",
-    "eval-retrieval": "tsx scripts/eval-retrieval.ts"
+    "eval-retrieval": "tsx scripts/eval-retrieval.ts",
+    "test-query-intent": "tsx scripts/test-query-intent.ts"
   },
   "dependencies": {
     "@google/genai": "^2.11.0",

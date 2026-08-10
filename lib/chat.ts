@@ -18,6 +18,7 @@
 
 import { embedText } from './embeddings';
 import { matchLoreHybrid, getMessagesForDay, insertMessage } from './supabase';
+import { needsRetrieval } from './query-intent';
 import { generateDialogue } from './gemma';
 import type { NPCCharacter } from './gemma';
 import type { RelationshipStage } from './relationship';
@@ -35,13 +36,24 @@ export interface SendMessageResult {
 }
 
 export async function sendPlayerMessage(input: SendMessageInput): Promise<SendMessageResult> {
-  const embedding = await embedText(input.playerMessage);
+  // "morning" needs no memory, and retrieval had no way to say so — it
+  // returned five unrelated chunks presented to the model as things she knows.
+  // Checked before embedding, so a greeting costs no API call at all.
+  // buildPrompt renders an empty set as "(Nothing specific comes to mind.)".
+  //
   // Hybrid rather than vector-only: cosine alone cannot rank a short
   // conversational message — every chunk lands within ~0.03 of every other, so
   // the ordering is close to arbitrary. Fusing full-text search with the
   // vector arm took rank-1 hits from 8 of 17 golden cases to 13.
   // See supabase/migrations/0001_hybrid_search.sql.
-  const retrievedLoreChunks = await matchLoreHybrid(embedding, input.playerMessage, input.character, input.sessionId);
+  const retrievedLoreChunks = needsRetrieval(input.playerMessage)
+    ? await matchLoreHybrid(
+        await embedText(input.playerMessage),
+        input.playerMessage,
+        input.character,
+        input.sessionId
+      )
+    : [];
 
   // getMessagesForDay returns every character's turns for the day, not just
   // this one — has to be filtered before it can stand in as this NPC's history.
