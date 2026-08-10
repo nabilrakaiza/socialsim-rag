@@ -238,12 +238,13 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - End of day can be retried after a failure, rather than stranding the player on a progress panel that never resolves
 - Confessing explains itself and asks first — it was a bare link, one click from permanently ending a thirty-day run
 - Chat messages carry the in-game time they were sent
+- Hybrid retrieval (`match_lore_hybrid`) — Postgres full-text search fused with vector search via Reciprocal Rank Fusion, now the production path in `lib/chat.ts`. Rank-1 hits on the golden set went from 8 of 17 to 13 of 17. See [Hybrid retrieval](#hybrid-retrieval)
 - Retrieval evaluation harness (`npm run eval-retrieval`) — 23 hand-labelled cases scored on hit rate, MRR, clean negatives and similarity spread, with a saved baseline and per-run deltas. Labels are validated against the live corpus before scoring, since a label matching nothing scores identically to a retrieval failure
 - `lore_chunks.source_file` stores the bare filename instead of an absolute path, so anything comparing against it works on any machine and on Vercel
 - The ending explains itself (`lib/ending-reflection.ts`) — the accumulated diary and knowledge chunks are finally read back to the player instead of only feeding retrieval. See [Why the ending happened](#why-the-ending-happened). Verified against a seeded end-state (`scripts/tmp-test-ending-reflection.ts`) and, for the first time, in the browser: the closing entry, the collapsible archive, and the conditional Yuki epilogue all render
 
 **Next up:**
-- **Retrieval quality** — measured against a 23-case golden set and it doesn't hold up: 0% clean negatives, MRR 0.471, and every long/short query pair degrades. See [Known problems with retrieval](#known-problems-with-retrieval) for the baseline and the ranked list of 17 fixes
+- **Retrieval quality** — hybrid search landed (MRR 0.471 → 0.598, rank-1 hits 8/17 → 13/17), but **clean negatives is still 0%**: every greeting still returns five chunks presented to the model as things the character knows. See [Known problems with retrieval](#known-problems-with-retrieval) for the remaining ranked fixes
 - **Temporal context in prompts** — characters have no idea what day or time it is, and it shows in what they say
 - Split end-of-day into two requests, so neither approaches Vercel's 300s Hobby ceiling. This is the one item that can break a live game rather than merely look unfinished
 - Play it. The 15-real-minutes-per-in-game-hour rate has never actually been sat through, only skipped past, so it's unvalidated
@@ -311,17 +312,18 @@ Four metrics, each over its own population:
 
 Six of the 23 cases are **negatives that expect nothing at all**. Without them, "retrieve less" is invisible — every metric that rewards finding things punishes correctly finding nothing.
 
-**Baseline, k=5, threshold=0.5** (`eval/baseline.json`; later runs print a delta against it):
+**Results.** Vector-only was the baseline; hybrid retrieval (below) is now what the game runs:
 
-| | |
-|---|---|
-| hit rate (positive) | 88% |
-| MRR | 0.471 |
-| clean negatives | **0%** |
-| mean spread | 0.067 |
-| mean chunks returned | 4.8 |
+| | vector-only | hybrid (rrf_k=3) |
+|---|---|---|
+| hit rate (positive) | 88% | 88% |
+| MRR | 0.471 | **0.598** |
+| positives at rank 1 | 8 of 17 | **13 of 17** |
+| clean negatives | 0% | 0% |
+| mean spread | 0.067 | 0.096 |
+| mean chunks returned | 4.8 | 5.0 |
 
-Two results stand out. **Clean negatives is 0%** — all six greetings and acknowledgements return a full set of chunks. And **mean chunks returned is 4.8 out of a possible 5**, confirming the 0.5 threshold filters essentially nothing.
+Two results stood out on the vector-only run. **Clean negatives is 0%** — all six greetings and acknowledgements return a full set of chunks, and hybrid doesn't fix that (see below). And **mean chunks returned was 4.8 of a possible 5**, confirming the 0.5 threshold filters essentially nothing.
 
 The set deliberately pairs a long and a short query against the *same* target chunk, which isolates phrasing from everything else. All four pairs degrade:
 
@@ -335,6 +337,25 @@ The set deliberately pairs a long and a short query against the *same* target ch
 Same corpus, same answer, only the wording differs — and the spread roughly halves each time. That last row is the sharpest: *"sorry i'm late"* fails to retrieve the chunk that names lateness as a deal-breaker, so the model answers a genuinely character-defining moment with nothing.
 
 One surprise: `"durian?"` — a single word — ranks its chunk **first**, because durian appears exactly once in the corpus. Rare tokens survive short queries; common ones drown. That is close to a direct argument for hybrid search.
+
+### Hybrid retrieval
+
+`match_lore_hybrid` (see `supabase/migrations/0001_hybrid_search.sql`) runs full-text search alongside the vector search and fuses the two with Reciprocal Rank Fusion. `lib/chat.ts` calls it; `matchLoreChunks` is kept so both paths stay scoreable against the golden set.
+
+**Why fusion rather than replacement.** The two methods are wrong about different queries. FTS found both cases vector missed entirely (`"sorry i'm late"`, `"you look tired"`) and returned exactly one candidate for `"durian?"` where vector returned five indistinguishable ones. But FTS is wrong where vector is right: for `"grab lunch"` it matches a diary entry mentioning lunch rather than `FOOD PREFERENCES`, which never uses the word. Neither arm is better — they fail differently, which is the entire premise.
+
+**Ranks, not scores.** Cosine sits at 0.5–0.8 on this corpus and `ts_rank` around 0.06. Averaging lets cosine dominate outright, and normalising needs each distribution's range, which shifts per query. RRF discards both scores and keeps only the ordering: `score = 1/(k + rank_vector) + 1/(k + rank_fts)`.
+
+**Three implementation traps**, all of which cost real debugging time:
+
+1. `plainto_tsquery` joins terms with `&`, and almost no chunk contains *every* word of a conversational message — the AND form returned nothing for four of seven test queries. The fix swaps the operator to `|` on the already-sanitized output. A punctuation-only message then yields an empty tsquery string, and `to_tsquery('english', '')` *raises* rather than returning no rows, so it needs a `nullif` guard.
+2. Cap candidate depth by filtering on the computed `rank`, never with a bare `LIMIT`. A `LIMIT` on a windowed select has no `ORDER BY` of its own, so it keeps an arbitrary subset — silently discarding rank-1 chunks before fusion sees them. This shipped in the first version and cost `hobbies-direct` and `cycling-invite` their correct rankings.
+3. `FULL OUTER JOIN`, and coalesce the missing **term** to 0, not the missing **rank**. Rank 0 scores `1/k`, which outranks a genuine first place.
+
+**Tuning.** `rrf_k` controls how much rank 1 dominates: low k trusts each arm's own ordering, high k rewards agreement. The literature default of 60 scored MRR 0.554; everything from 10 upward was identical; **3 peaked at 0.598** and is now the default. Low k wins here because agreement is a weak signal on a small corpus — the lexical arm ORs its terms, so a common word like `time` or `day` drags in a third of a 24-chunk pool, and those chunks then score on both arms and outvote one that is semantically perfect but shares no vocabulary with the query. At `rrf_k=60` that sank `hobbies-direct` from rank 1 to unretrieved. **3 is tuned on 23 cases against one corpus — re-sweep after any change to chunking or corpus size.**
+
+**What it fixed and what it didn't.** Rank-1 hits went from 8 of 17 to 13 of 17, and `noticed-tired` went from unretrieved to rank 2. Hit rate is unchanged at 88%: `lunch-invite` regressed from rank 3 to unretrieved, trading places with `noticed-tired` — the predicted cost of FTS pointing at the wrong lunch chunk. `apology-late` still misses. **Clean negatives is still 0%**, and hybrid was never going to fix it: `"morning"` matches two chunks lexically, so the greetings still return a full set. That needs item 8.
+
 
 ### What to fix
 
@@ -356,7 +377,7 @@ Grouped by what each change actually attacks. Ordered so the cheap independent o
 
 **The ranking — what wins**
 
-10. **Hybrid search: Postgres full-text + vector.** Short queries can't discriminate by cosine — that's inherent at that length, not a tuning failure. FTS gives `"morning"` a literal token. The `durian` result above is the evidence.
+10. ~~**Hybrid search: Postgres full-text + vector.**~~ **Done** — see [Hybrid retrieval](#hybrid-retrieval) below.
 11. **Raise the threshold and accept empty results.** `buildPrompt` already writes *"(Nothing specific comes to mind.)"*, which beats five unrelated diary entries. At `--threshold 0.6` clean negatives goes 0% → 100% and MRR 0.471 → 0.800, at the cost of hit rate.
 12. **Separate the pools, or weight by `source_file`.** Diary entries dominate; structured lore rarely surfaces even when it's the answer. `cycling-multi` measures exactly this.
 13. **Recency in a re-rank pass.** Cosine has no reason to prefer day 25 over day 3. Depends on (1).

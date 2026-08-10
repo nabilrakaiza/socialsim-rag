@@ -41,6 +41,13 @@ export interface MultiMatchedChunk extends MatchedChunk {
   chara: string;
 }
 
+// Shape returned by match_lore_hybrid. `similarity` is still the true cosine
+// value so the eval harness's spread metric stays comparable against the
+// pre-hybrid baseline; `score` is the RRF value the ordering actually used.
+export interface HybridMatchedChunk extends MatchedChunk {
+  score: number;
+}
+
 export async function insertLoreChunks(
   chunks: LoreChunk[],
   embeddings: number[][]
@@ -95,6 +102,44 @@ export async function matchLoreChunks(
     match_session_id: sessionId,
     match_count: matchCount,
     similarity_threshold: similarityThreshold,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+// Full-text search fused with vector search — see
+// supabase/migrations/0001_hybrid_search.sql for why and how.
+//
+// Deliberately a separate function rather than a flag on matchLoreChunks: the
+// point is to score both paths against the same golden set, and that needs
+// both to stay callable. Once the numbers settle, one of them gets deleted.
+//
+// No similarity threshold parameter, unlike matchLoreChunks. RRF ranks rather
+// than scores, so a cosine cutoff would truncate the input to fusion rather
+// than filter its output — if a threshold belongs anywhere here, it belongs
+// after the fusion, on `score`.
+export async function matchLoreHybrid(
+  queryEmbedding: number[],
+  queryText: string,
+  character: LoreChunk['character'],
+  sessionId: string | null = null,
+  matchCount: number = 5,
+  // Swept against eval/retrieval-golden.json: the literature default of 60
+  // scored MRR 0.554, everything from 10 up was identical, and 3 peaked at
+  // 0.598 — see the migration for why low k wins on a corpus this size.
+  rrfK: number = 3
+): Promise<HybridMatchedChunk[]> {
+  const { data, error } = await supabase.rpc('match_lore_hybrid', {
+    query_embedding: queryEmbedding,
+    query_text: queryText,
+    match_character: character,
+    match_session_id: sessionId,
+    match_count: matchCount,
+    rrf_k: rrfK,
   });
 
   if (error) {

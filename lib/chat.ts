@@ -3,7 +3,7 @@
 //
 // Single-turn chat handling — the "read path" companion to
 // lib/batch-eval.ts's write path. Ties together:
-//   lib/supabase.ts   (matchLoreChunks, getMessagesForDay, insertMessage)
+//   lib/supabase.ts   (matchLoreHybrid, getMessagesForDay, insertMessage)
 //   lib/gemma.ts       (generateDialogue)
 //   lib/embeddings.ts  (embedText, for the retrieval query)
 //
@@ -17,7 +17,7 @@
 // ============================================================
 
 import { embedText } from './embeddings';
-import { matchLoreChunks, getMessagesForDay, insertMessage } from './supabase';
+import { matchLoreHybrid, getMessagesForDay, insertMessage } from './supabase';
 import { generateDialogue } from './gemma';
 import type { NPCCharacter } from './gemma';
 import type { RelationshipStage } from './relationship';
@@ -36,7 +36,12 @@ export interface SendMessageResult {
 
 export async function sendPlayerMessage(input: SendMessageInput): Promise<SendMessageResult> {
   const embedding = await embedText(input.playerMessage);
-  const retrievedLoreChunks = await matchLoreChunks(embedding, input.character, input.sessionId);
+  // Hybrid rather than vector-only: cosine alone cannot rank a short
+  // conversational message — every chunk lands within ~0.03 of every other, so
+  // the ordering is close to arbitrary. Fusing full-text search with the
+  // vector arm took rank-1 hits from 8 of 17 golden cases to 13.
+  // See supabase/migrations/0001_hybrid_search.sql.
+  const retrievedLoreChunks = await matchLoreHybrid(embedding, input.playerMessage, input.character, input.sessionId);
 
   // getMessagesForDay returns every character's turns for the day, not just
   // this one — has to be filtered before it can stand in as this NPC's history.

@@ -10,6 +10,7 @@
 // Usage:
 //   npm run eval-retrieval
 //   npm run eval-retrieval -- --k 5 --threshold 0.55
+//   npm run eval-retrieval -- --hybrid        (full-text + vector via RRF)
 //   npm run eval-retrieval -- --save          (writes eval/baseline.json)
 //
 // Once a baseline exists, every run prints a delta against it — which is the
@@ -22,7 +23,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
 import { embedText } from '../lib/embeddings';
-import { matchLoreChunks } from '../lib/supabase';
+import { matchLoreChunks, matchLoreHybrid } from '../lib/supabase';
 import type { MatchedChunk } from '../lib/supabase';
 import type { NPCCharacter } from '../lib/gemma';
 
@@ -85,7 +86,7 @@ function loadGoldenSet(): GoldenCase[] {
   return parsed.cases;
 }
 
-function parseArgs(): { k: number; threshold: number; save: boolean } {
+function parseArgs(): { k: number; threshold: number; save: boolean; hybrid: boolean; rrfK: number } {
   const args = process.argv.slice(2);
   const value = (flag: string, fallback: number) => {
     const i = args.indexOf(flag);
@@ -98,6 +99,13 @@ function parseArgs(): { k: number; threshold: number; save: boolean } {
     k: value('--k', 5),
     threshold: value('--threshold', 0.5),
     save: args.includes('--save'),
+    // Both paths stay callable so the same golden set scores each one. The
+    // threshold flag is ignored under --hybrid: RRF consumes ranks, so there
+    // is no cosine cutoff to apply (see matchLoreHybrid).
+    hybrid: args.includes('--hybrid'),
+    // Matches matchLoreHybrid's default so a bare --hybrid run measures what
+    // the game actually does. Swept: 60 -> MRR 0.554, 3 -> 0.598.
+    rrfK: value('--rrf-k', 3),
   };
 }
 
@@ -309,12 +317,23 @@ async function validateLabels(cases: GoldenCase[]): Promise<void> {
   }
 }
 
-async function runCase(kase: GoldenCase, k: number, threshold: number): Promise<CaseResult> {
+async function runCase(
+  kase: GoldenCase,
+  k: number,
+  threshold: number,
+  hybrid: boolean,
+  rrfK: number
+): Promise<CaseResult> {
   const embedding = await embedText(kase.query);
   // sessionId null = static lore only. Dynamic memory is per-playthrough and
   // can't be labelled ahead of time, so the golden set measures the base
   // corpus. Worth revisiting once a full run's chunks exist to label.
-  const results = await matchLoreChunks(embedding, kase.character, null, k, threshold);
+  //
+  // Hybrid returns the true cosine in `similarity` alongside its RRF `score`,
+  // so spread stays measured on the same scale as the vector-only baseline.
+  const results = hybrid
+    ? await matchLoreHybrid(embedding, kase.query, kase.character, null, k, rrfK)
+    : await matchLoreChunks(embedding, kase.character, null, k, threshold);
   return scoreCase(kase, results);
 }
 
@@ -349,7 +368,7 @@ function printSummary(now: Summary, before: Summary | null): void {
     return `  (${diff > 0 ? '+' : ''}${format(diff)} vs ${before!.label})`;
   };
 
-  console.log(`\n=== k=${now.k}, threshold=${now.threshold} ===`);
+  console.log(`\n=== ${now.label.split(' ')[0] === 'hybrid' ? now.label.split(' ').slice(0, 2).join(' ') : 'vector'}, k=${now.k}, threshold=${now.threshold} ===`);
   console.log(`  hit rate (positive)   ${pct(now.hitRate)}${delta(now.hitRate, before?.hitRate, pct)}`);
   console.log(`  MRR                   ${now.mrr.toFixed(3)}${delta(now.mrr, before?.mrr, (n) => n.toFixed(3))}`);
   console.log(`  clean negatives       ${pct(now.cleanNegatives)}${delta(now.cleanNegatives, before?.cleanNegatives, pct)}`);
@@ -358,7 +377,7 @@ function printSummary(now: Summary, before: Summary | null): void {
 }
 
 async function main() {
-  const { k, threshold, save } = parseArgs();
+  const { k, threshold, save, hybrid, rrfK } = parseArgs();
   const cases = loadGoldenSet();
   await validateLabels(cases);
 
@@ -373,10 +392,10 @@ async function main() {
   // on a latency path. Reading the cases in order is worth more than speed.
   const results: CaseResult[] = [];
   for (const kase of cases) {
-    results.push(await runCase(kase, k, threshold));
+    results.push(await runCase(kase, k, threshold, hybrid, rrfK));
   }
 
-  const label = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  const label = `${hybrid ? `hybrid rrf_k=${rrfK}` : 'vector'} ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
   const summary = summarize(results, label, k, threshold);
 
   const before: Summary | null =
