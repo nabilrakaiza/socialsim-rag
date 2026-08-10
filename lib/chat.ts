@@ -20,7 +20,7 @@ import { embedText } from './embeddings';
 import { matchLoreHybrid, getMessagesForDay, insertMessage } from './supabase';
 import { needsRetrieval } from './query-intent';
 import { generateDialogue } from './gemma';
-import type { NPCCharacter } from './gemma';
+import type { NPCCharacter, TemporalContext } from './gemma';
 import type { RelationshipStage } from './relationship';
 
 export interface SendMessageInput {
@@ -29,6 +29,14 @@ export interface SendMessageInput {
   day: number;
   relationshipStage: RelationshipStage;
   playerMessage: string;
+  /**
+   * Where the day is when this message is sent. The live clock is client-side
+   * state (see app/useDayClock.ts) and deliberately not persisted, so the
+   * caller is the only thing that knows it.
+   */
+  inGameHour: number;
+  /** What she is in the middle of, if the current segment implies one. */
+  activity?: string;
 }
 
 export interface SendMessageResult {
@@ -60,7 +68,20 @@ export async function sendPlayerMessage(input: SendMessageInput): Promise<SendMe
   const todayMessages = await getMessagesForDay(input.sessionId, input.day);
   const history = todayMessages.filter(m => m.character == input.character);
 
-  const { reply } = await generateDialogue(input.character, input.playerMessage, retrievedLoreChunks, history, input.relationshipStage);
+  const temporal: TemporalContext = {
+    day: input.day,
+    inGameHour: input.inGameHour,
+    activity: input.activity,
+  };
+
+  const { reply } = await generateDialogue(
+    input.character,
+    input.playerMessage,
+    retrievedLoreChunks,
+    history,
+    input.relationshipStage,
+    temporal
+  );
 
   // Persisted after generateDialogue, not before — so this turn doesn't see
   // itself as part of its own history.

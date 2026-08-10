@@ -22,7 +22,8 @@ async function main() {
     playerMessage,
     chunks,
     [],
-    'Stranger'
+    'Stranger',
+    { day: 1, inGameHour: 12.5, activity: 'lunch' }
   );
 
   console.log('\ngemma result:');

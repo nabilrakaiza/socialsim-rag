@@ -47,6 +47,8 @@ async function main() {
     day: DAY,
     relationshipStage: 'Acquaintance',
     playerMessage: "hey, saw you at the library yesterday, didn't want to interrupt since you looked deep in that lab report",
+    inGameHour: 12.5,
+    activity: 'lunch',
   });
   console.log('turn 1 reply:', first.reply);
 
@@ -55,6 +57,8 @@ async function main() {
     character: 'hiyori',
     day: DAY,
     relationshipStage: 'Acquaintance',
+    inGameHour: 12.75,
+    activity: 'lunch',
     playerMessage: "so how'd it go? the lab report",
   });
   console.log('\nturn 2 reply:', second.reply);

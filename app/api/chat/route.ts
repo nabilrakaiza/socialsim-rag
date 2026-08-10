@@ -13,6 +13,8 @@ interface ChatBody {
   day?: number;
   relationshipStage?: RelationshipStage;
   playerMessage?: string;
+  inGameHour?: number;
+  activity?: string;
 }
 
 export async function POST(request: Request) {
@@ -22,6 +24,9 @@ export async function POST(request: Request) {
     if (typeof body.day !== 'number') {
       throw new Error('missing or invalid field: day');
     }
+    if (typeof body.inGameHour !== 'number') {
+      throw new Error('missing or invalid field: inGameHour');
+    }
 
     return ok(
       await sendPlayerMessage({
@@ -30,6 +35,8 @@ export async function POST(request: Request) {
         day: body.day,
         relationshipStage: requireString(body.relationshipStage, 'relationshipStage') as RelationshipStage,
         playerMessage: requireString(body.playerMessage, 'playerMessage'),
+        inGameHour: body.inGameHour,
+        activity: typeof body.activity === 'string' ? body.activity : undefined,
       })
     );
   } catch (err) {

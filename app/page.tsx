@@ -23,6 +23,16 @@ import { ArcStatus } from './components/ArcStatus';
 
 const SESSION_KEY = 'socialsim-session-id';
 
+// Only free segments are chattable, so this covers every case a message can be
+// sent from. Phrased as something she'd say she was doing, since it reaches the
+// prompt as "She is in the middle of: ...". Module scope, not component scope:
+// send() is memoised, and a fresh object each render would rebuild it.
+const CHAT_ACTIVITY: Record<string, string | undefined> = {
+  get_ready: 'getting ready for the day',
+  lunch: 'lunch',
+  dinner: 'dinner',
+};
+
 // Semantic stage ids come from lib/; the wording is the UI's business.
 const STAGE_COPY: Record<EndDayStage, string> = {
   scoring: 'weighing what you did today…',
@@ -131,6 +141,9 @@ export default function Page() {
   // Written in an effect rather than during render: mutating a ref while
   // rendering is what React's rules forbid, and a one-render lag on a clock
   // that ticks every 250ms is not observable in a timestamp shown to the minute.
+  // Same reasoning: the name is a stable string, the segment object is not.
+  const segmentName = clock.segment?.name;
+
   const clockRef = useRef(clock.inGameHour);
   useEffect(() => {
     clockRef.current = clock.inGameHour;
@@ -200,6 +213,12 @@ export default function Page() {
           day: state.current_day,
           relationshipStage: state.relationship_stage as RelationshipStage,
           playerMessage: text,
+          // The live clock only exists here — useDayClock is client state and
+          // isn't persisted — so nothing server-side can work out what time it
+          // is unless this sends it. Without it characters guessed: Hiyori
+          // said "It's barely seven" at 06:14.
+          inGameHour: clockRef.current,
+          activity: CHAT_ACTIVITY[segmentName ?? ''],
         });
         // Stamped with the reply's own arrival time, not the question's — a
         // reply lands 12-15s later, which is minutes of in-game time.
@@ -218,7 +237,7 @@ export default function Page() {
         });
       }
     }),
-    [state, character, sessionId]
+    [state, character, sessionId, segmentName]
   );
 
   const answerEvent = useCallback(

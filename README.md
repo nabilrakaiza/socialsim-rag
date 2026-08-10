@@ -239,6 +239,7 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - Confessing explains itself and asks first — it was a bare link, one click from permanently ending a thirty-day run
 - Chat messages carry the in-game time they were sent
 - Static corpus reduced 71 → 37 chunks, all of them reachable: the `events` and `adrian` pools were retrieved by nothing (see [Unreachable chunks](#unreachable-chunks)). Adrian is now a per-character prompt block in `lib/adrian-profile.ts`
+- Characters know what time it is (`WHEN THIS IS HAPPENING` in `buildPrompt`) — day number, clock, time-of-day phrase, and current activity, sent from the client since the live clock is client-side state. See [Temporal context](#temporal-context)
 - Knowledge chunks carry `[Day N]` in their content, so a memory can be placed in time and near-identical daily updates have something separating them
 - Greeting gate (`lib/query-intent.ts`) — decides whether a message needs memory before anything is embedded, after measuring that neither cosine nor the fused score can separate greetings from real short questions. Clean negatives 0% → 100%, validated on 50 held-out messages (`npm run test-query-intent`)
 - Hybrid retrieval (`match_lore_hybrid`) — Postgres full-text search fused with vector search via Reciprocal Rank Fusion, now the production path in `lib/chat.ts`. Rank-1 hits on the golden set went from 8 of 17 to 13 of 17. See [Hybrid retrieval](#hybrid-retrieval)
@@ -248,7 +249,6 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 
 **Next up:**
 - **Retrieval quality** — hybrid search and the greeting gate landed: MRR 0.471 → 0.859, clean negatives 0% → 100%, chunks returned 4.8 → 3.7. Two cases still miss (`lunch-invite`, `apology-late`) and the remaining ranked fixes are in [Known problems with retrieval](#known-problems-with-retrieval)
-- **Temporal context in prompts** — characters have no idea what day or time it is, and it shows in what they say
 - Split end-of-day into two requests, so neither approaches Vercel's 300s Hobby ceiling. This is the one item that can break a live game rather than merely look unfinished
 - Play it. The 15-real-minutes-per-in-game-hour rate has never actually been sat through, only skipped past, so it's unvalidated
 - **Day 2 onward** has never run for real — arc continuation across days is untested in the interface. (The ending screen was in this list; it has now been driven in a browser against a seeded end-state.)
@@ -424,19 +424,31 @@ Grouped by what each change actually attacks. Ordered so the cheap independent o
 
 **The prompt — how retrieved text is presented**
 
-15. **Temporal context in `buildPrompt`** — see below.
+15. ~~**Temporal context in `buildPrompt`**~~ **Done** — see [Temporal context](#temporal-context).
 16. **Stop labelling retrieved chunks as fact.** Five 0.53-similarity misses currently arrive under *"RELEVANT MEMORY (things Hiyori knows)"*.
 17. **Move Adrian's profile out of retrieval and into the prompt.** Four chunks, always relevant to every NPC — retrieval is the wrong mechanism for something that is never *not* relevant.
 
 Items 6 and 13 only pay off on a long run, and day 2+ has never been played in the UI, so they're research-shaped rather than fix-shaped for now.
 
-### Missing temporal context
+### Temporal context
 
-Separately: nothing in `buildPrompt` tells a character what day or time it is. It receives the persona, retrieved chunks, conversation history and relationship stage — no clock, no day number, no segment.
+`buildPrompt` used to receive the persona, retrieved chunks, conversation history and relationship stage — no clock, no day number, no segment. At 06:14 in-game Hiyori replied *"It's barely seven"*. She was guessing, and had no way not to.
 
-The effect is visible in play. At 06:14 in-game, Hiyori replied *"It's barely seven"* — she was guessing, and had no way not to. She also can't reference yesterday, notice that it's late, or tell day 2 from day 25. Now that messages carry in-game timestamps this mismatch is on screen next to every line.
+It now gets a `WHEN THIS IS HAPPENING` block: the day number, the clock, a phrase for the time of day, and what she's in the middle of.
 
-The schedule and day number are already available where dialogue is generated, so this is a matter of adding them to the prompt rather than plumbing anything new.
+The **phrase** matters as much as the number. Nobody thinks *"it is 06:14"*, they think *"it is early"* — so the prompt carries both, and the phrase is what keeps the reply natural rather than making her recite a timestamp.
+
+Plumbing note: the live clock is client-side state in `app/useDayClock.ts` and deliberately isn't persisted, so **nothing server-side can work out what time it is unless the client sends it**. `inGameHour` is now a required field on `/api/chat`, and the current segment maps to an activity phrase (`lunch`, `getting ready for the day`, …). Only free segments are chattable, so that map covers every case a message can be sent from.
+
+Verified by sending the same message — *"hey, you around?"* — at three different times on the same day:
+
+| in-game time | reply |
+|---|---|
+| 06:14 | *"It's barely past six, Adrian. Unless the world is ending… this is an incredibly strange hour to be checking if I'm around."* |
+| 12:30, at lunch | *"I'm buried in a sandwich and a mountain of lab readings, so 'around' is a generous term for me right now."* |
+| 23:45 | *"Do you have any idea what time it is, or are you just testing to see if I'm still awake enough to regret answering?"* |
+
+The first row is the original bug, fixed and checkable: *"barely past six"* rather than *"barely seven"*.
 
 ---
 

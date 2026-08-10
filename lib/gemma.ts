@@ -97,12 +97,58 @@ export interface DialogueResult {
   reply: string;
 }
 
+
+// What a character can tell about the time without being told a number.
+//
+// Passed as a phrase rather than the raw clock because that's how a person
+// actually holds it: nobody thinks "it is 06:14", they think "it is early".
+// Hiyori replied "It's barely seven" at 06:14 in a real playthrough — she was
+// guessing, because the prompt gave her nothing. The exact time goes in too,
+// but the phrase is what keeps the reply natural.
+function timeOfDayPhrase(hour: number): string {
+  if (hour < 5) return 'the middle of the night';
+  if (hour < 8) return 'early morning';
+  if (hour < 11) return 'mid-morning';
+  if (hour < 13) return 'around midday';
+  if (hour < 17) return 'afternoon';
+  if (hour < 20) return 'evening';
+  if (hour < 23) return 'night';
+  return 'very late at night';
+}
+
+export interface TemporalContext {
+  /** In-game day, 1-30. */
+  day: number;
+  /** Hours since midnight — 6.25 is 06:15. */
+  inGameHour: number;
+  /** What she is in the middle of, if anything: "lunch", "in class". */
+  activity?: string;
+}
+
+function buildTemporalBlock(context: TemporalContext): string {
+  const hh = Math.floor(context.inGameHour);
+  const mm = Math.floor((context.inGameHour - hh) * 60);
+  const clock = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+
+  const lines = [
+    `It is day ${context.day} of the semester, ${clock} — ${timeOfDayPhrase(context.inGameHour)}.`,
+  ];
+  if (context.activity) {
+    lines.push(`She is in the middle of: ${context.activity}.`);
+  }
+  lines.push(
+    'Let this colour the reply — how awake she is, whether she has time to talk, whether the hour is odd enough to remark on. Never recite the day number or the clock back at him unless it genuinely matters.'
+  );
+  return lines.join('\n');
+}
+
 function buildPrompt(
   character: NPCCharacter,
   playerMessage: string,
   chunks: MatchedChunk[],
   history: DialogueTurn[],
-  relationshipStage: RelationshipStage
+  relationshipStage: RelationshipStage,
+  temporal: TemporalContext
 ): string {
   const name = character[0].toUpperCase() + character.slice(1);
 
@@ -120,6 +166,9 @@ PERSONALITY: ${PERSONAS[character]}
 
 WHAT ${name.toUpperCase()} KNOWS ABOUT ADRIAN (the player) — stable background, not something he said today:
 ${adrianProfileFor(character)}
+
+WHEN THIS IS HAPPENING:
+${buildTemporalBlock(temporal)}
 
 CURRENT RELATIONSHIP STAGE WITH THE PLAYER: ${relationshipStage}
 Let this stage guide your warmth/guardedness — earlier stages should read more reserved, later stages more open. Never state the stage name or any numeric score out loud.
@@ -163,9 +212,10 @@ export async function generateDialogue(
   playerMessage: string,
   chunks: MatchedChunk[],
   history: DialogueTurn[],
-  relationshipStage: RelationshipStage
+  relationshipStage: RelationshipStage,
+  temporal: TemporalContext
 ): Promise<DialogueResult> {
-  const prompt = buildPrompt(character, playerMessage, chunks, history, relationshipStage);
+  const prompt = buildPrompt(character, playerMessage, chunks, history, relationshipStage, temporal);
 
   // Single-turn contents: history is already flattened into the prompt
   // text by buildPrompt, and systemInstruction support is unconfirmed
