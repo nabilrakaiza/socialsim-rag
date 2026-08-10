@@ -259,14 +259,15 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - The ending explains itself (`lib/ending-reflection.ts`) — the accumulated diary and knowledge chunks are finally read back to the player instead of only feeding retrieval. See [Why the ending happened](#why-the-ending-happened). Verified against a seeded end-state (`scripts/tmp-test-ending-reflection.ts`) and, for the first time, in the browser: the closing entry, the collapsible archive, and the conditional Yuki epilogue all render
 
 **Next up:**
-- **Retrieval quality** — hybrid search and the greeting gate landed: MRR 0.471 → 0.859, clean negatives 0% → 100%, chunks returned 4.8 → 3.7. Two cases still miss (`lunch-invite`, `apology-late`) and the remaining ranked fixes are in [Known problems with retrieval](#known-problems-with-retrieval)
-- Split end-of-day into two requests, so neither approaches Vercel's 300s Hobby ceiling. This is the one item that can break a live game rather than merely look unfinished
-- Play it. The 15-real-minutes-per-in-game-hour rate has never actually been sat through, only skipped past, so it's unvalidated
-- **Day 2 onward** has never run for real — arc continuation across days is untested in the interface. (The ending screen was in this list; it has now been driven in a browser against a seeded end-state.)
+- **Split end-of-day into two requests.** 210s average and 242s worst against Vercel Hobby's *hard* 300s ceiling. The only remaining item that can break a live game rather than merely look unfinished
+- **Consolidate old knowledge chunks.** Now evidence-backed — see [Is per-playthrough memory searchable?](#is-per-playthrough-memory-searchable). Worth re-measuring first: the 0.905 figure was taken from a corpus where a third of the chunks were misattributed, so it isn't a clean baseline
+- **Measure retrieval quality on dynamic memory.** Clustering shows the chunks are hard to tell *apart*; it does not show a real query picks the *wrong* one. Needs paraphrase queries — an LLM call per chunk, or hand-written labels
+- **Play a full run.** Day 2 onward has never completed in the UI on a working build, the 15-real-minutes-per-in-game-hour clock has never been sat through, and no ending has been reached by playing rather than seeding
+- **Thin corpora for Shiori and Yuki** — 6 and 7 chunks, so `k=5` returns most of the pool and retrieval barely selects. Prose to write, not code
+- Responsive layout — built desktop-first and never opened on a phone
+- Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
 
 All five endings are fully implemented — there is no missing mechanic behind any of them.
-- Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
-- Responsive layout — built desktop-first and not yet checked on mobile
 
 ---
 
@@ -469,40 +470,6 @@ Fixed by passing `m.role` through. Both exchanges now read correctly — *"Adria
 The honest limitation stands: clustering shows the chunks are hard to tell apart, not that a real query picks the wrong one. That needs paraphrase queries.
 
 
-### What to fix
-
-Grouped by what each change actually attacks. Ordered so the cheap independent ones land before the two big ones.
-
-**The corpus — what gets stored**
-1. ~~**Put the day inside knowledge chunk content.**~~ **Done** — knowledge chunks are now written as `[Day N] <update>`, so the day is both embedded and visible to the model. It was previously only in `source_file`, which is neither.
-2. **Enforce the diary's `[Day N — In-game]` tag** rather than asking the model for it in the prompt — there's no validation today.
-3. **Persist in-game time.** `messages` has no time column; the timestamps in chat are derived client-side and lost on reload.
-4. ~~**Resolve the two dead pools.**~~ **Done** — see [Unreachable chunks](#unreachable-chunks).
-5. **Re-chunk the long files.** Chunk sizes run 91–1521 chars, a 16× spread; long chunks average out to a mushy centroid and match everything weakly.
-6. **Consolidate old knowledge chunks.** **Now evidence-backed** — see [Is per-playthrough memory searchable?](#is-per-playthrough-memory-searchable). Hiyori's generated memory is more tightly clustered than any of 400 size-matched samples of static lore, and removing the null chunks made it tighter still (0.905), not looser.
-
-**The query — what gets asked**
-
-7. **Embed more than the bare message** (last 2–3 turns). Still the single change most likely to fix it outright. `GoldenCase.context` exists for scoring this against the same set.
-8. ~~**Skip retrieval for greetings.**~~ **Done** — see [Knowing when not to retrieve](#knowing-when-not-to-retrieve) below.
-9. **HyDE / query rewriting.** Real gains on short queries, but it buys with an LLM call what hybrid search gives free.
-
-**The ranking — what wins**
-
-10. ~~**Hybrid search: Postgres full-text + vector.**~~ **Done** — see [Hybrid retrieval](#hybrid-retrieval) below.
-11. **Raise the threshold and accept empty results.** `buildPrompt` already writes *"(Nothing specific comes to mind.)"*, which beats five unrelated diary entries. At `--threshold 0.6` clean negatives goes 0% → 100% and MRR 0.471 → 0.800, at the cost of hit rate.
-12. **Separate the pools, or weight by `source_file`.** Diary entries dominate; structured lore rarely surfaces even when it's the answer. `cycling-multi` measures exactly this.
-13. **Recency in a re-rank pass.** Cosine has no reason to prefer day 25 over day 3. Depends on (1).
-14. **Cap per source type** — max 2 diary + 2 knowledge + 2 static rather than top-5 overall.
-
-**The prompt — how retrieved text is presented**
-
-15. ~~**Temporal context in `buildPrompt`**~~ **Done** — see [Temporal context](#temporal-context).
-16. **Stop labelling retrieved chunks as fact.** Five 0.53-similarity misses currently arrive under *"RELEVANT MEMORY (things Hiyori knows)"*.
-17. **Move Adrian's profile out of retrieval and into the prompt.** Four chunks, always relevant to every NPC — retrieval is the wrong mechanism for something that is never *not* relevant.
-
-Item 13 only pays off on a long run, so it stays research-shaped for now. Item 6 no longer is — the clustering it addresses has been measured.
-
 ### Temporal context
 
 `buildPrompt` used to receive the persona, retrieved chunks, conversation history and relationship stage — no clock, no day number, no segment. At 06:14 in-game Hiyori replied *"It's barely seven"*. She was guessing, and had no way not to.
@@ -524,6 +491,43 @@ Verified by sending the same message — *"hey, you around?"* — at three diffe
 The first row is the original bug, fixed and checkable: *"barely past six"* rather than *"barely seven"*.
 
 ---
+
+### What to fix
+
+Grouped by what each change actually attacks. Ordered so the cheap independent ones land before the two big ones.
+
+**The corpus — what gets stored**
+1. ~~**Put the day inside knowledge chunk content.**~~ **Done** — knowledge chunks are now written as `[Day N] <update>`, so the day is both embedded and visible to the model. It was previously only in `source_file`, which is neither.
+2. **Enforce the diary's `[Day N — In-game]` tag** rather than asking the model for it in the prompt — there's no validation today.
+3. **Persist in-game time.** `messages` has no time column; the timestamps in chat are derived client-side and lost on reload.
+4. ~~**Resolve the two dead pools.**~~ **Done** — see [Unreachable chunks](#unreachable-chunks).
+5. **Re-chunk the long files.** Chunk sizes run 91–1521 chars, a 16× spread; long chunks average out to a mushy centroid and match everything weakly.
+6. **Consolidate old knowledge chunks.** **Now evidence-backed** — see [Is per-playthrough memory searchable?](#is-per-playthrough-memory-searchable). Hiyori's generated memory is more tightly clustered than any of 400 size-matched samples of static lore, and removing the null chunks made it tighter still (0.905), not looser.
+
+18. ~~**Stop storing "nothing happened" as a memory.**~~ **Done** — the knowledge prompt returns a `notable` flag and nothing is written when it's false. Four of one ten-day run's seven chunks had been paraphrases of "nothing meaningful happened regarding Adrian today", embedded and retrievable.
+19. ~~**Fix subject attribution.**~~ **Done** — `batch-eval` hardcoded `role: "npc"` on every message, so the knowledge prompt saw Adrian's own lines labelled as the NPC's and guessed wrong about a third of the time. `buildChatAffectionDelta` read the same arrays, so affection was scored off the same mislabelled transcript.
+
+**The query — what gets asked**
+
+7. **Embed more than the bare message** (last 2–3 turns). Still the single change most likely to fix it outright. `GoldenCase.context` exists for scoring this against the same set.
+8. ~~**Skip retrieval for greetings.**~~ **Done** — see [Knowing when not to retrieve](#knowing-when-not-to-retrieve) below.
+9. **HyDE / query rewriting.** Real gains on short queries, but it buys with an LLM call what hybrid search gives free.
+
+**The ranking — what wins**
+
+10. ~~**Hybrid search: Postgres full-text + vector.**~~ **Done** — see [Hybrid retrieval](#hybrid-retrieval) below.
+11. **Raise the threshold and accept empty results.** `buildPrompt` already writes *"(Nothing specific comes to mind.)"*, which beats five unrelated diary entries. At `--threshold 0.6` clean negatives goes 0% → 100% and MRR 0.471 → 0.800, at the cost of hit rate.
+12. **Separate the pools, or weight by `source_file`.** Diary entries dominate; structured lore rarely surfaces even when it's the answer. `cycling-multi` measures exactly this.
+13. **Recency in a re-rank pass.** Cosine has no reason to prefer day 25 over day 3. Depends on (1).
+14. **Cap per source type** — max 2 diary + 2 knowledge + 2 static rather than top-5 overall.
+
+**The prompt — how retrieved text is presented**
+
+15. ~~**Temporal context in `buildPrompt`**~~ **Done** — see [Temporal context](#temporal-context).
+16. **Stop labelling retrieved chunks as fact.** Five 0.53-similarity misses currently arrive under *"RELEVANT MEMORY (things Hiyori knows)"*.
+17. ~~**Move Adrian's profile out of retrieval and into the prompt.**~~ **Done** — see [Unreachable chunks](#unreachable-chunks).
+
+Item 13 only pays off on a long run, so it stays research-shaped for now. Item 6 no longer is — the clustering it addresses has been measured.
 
 ## Known problem: end-of-day is slow, and the cause isn't what it looked like
 
@@ -569,11 +573,27 @@ Two Vercel projects rather than one. This repo hosts the engine and its API; the
 
 The proxy must **pipe the response body through untouched**. End of day streams NDJSON progress, and a proxy that does `await res.json()` would buffer the whole multi-minute response and destroy the progress reporting.
 
+### Deploy order
+
+Two separately-deployed projects with a contract between them, so order matters:
+
+1. **Apply migrations** (`supabase/migrations/`). Every one so far is additive — a nullable column, a generated column, new functions — so applying them ahead of the code is harmless. The reverse is not: `lib/chat.ts` calls `match_lore_hybrid` unconditionally, so code deployed before its migration means **every chat 500s**.
+2. **Deploy this repo** (the engine).
+3. **Deploy the personal site** (the playground).
+
+The hazard that has actually bitten: **adding a required request field is a breaking change across the proxy boundary.** `inGameHour` became required here when characters were given temporal context, and the playground's copy didn't send it — every message in the playground would have failed until it caught up. Prefer making a new field optional with a server-side default, deploy both, then tighten it if you ever need to.
+
+`npm run ingest` is destructive mid-flight: it deletes every static chunk and re-inserts over ~37 embedding calls. Retrieval returns nothing for that minute, so characters answer with *"nothing specific comes to mind."* Per-session memory is untouched, so saves survive — just don't run it while someone is playing.
+
+Saves survive deploys: sessions live in Supabase keyed by a `session_id` held in `localStorage`, and every schema change so far is backward-compatible with existing rows. One subtlety — a save created before a prompt fix keeps whatever its chunks already said. Nothing crashes; the memory is simply wrong for the rest of that run.
+
 Everything runs on free tiers, with three caveats worth knowing:
 
 - **Vercel Hobby caps function duration at 300s** — see the end-of-day risk above.
 - **Supabase pauses free projects after 7 days of inactivity.** If nobody plays for a week the game breaks until the project is manually resumed; a scheduled ping avoids it.
 - **Gemini's free tier has daily request caps.** A single day of play is roughly ten LLM calls, so a handful of players can exhaust the daily quota.
+
+There are no accounts and no personal data: whoever holds a `session_id` holds that save, which is why it's a UUID rather than anything guessable.
 
 ---
 
