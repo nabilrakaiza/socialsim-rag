@@ -115,10 +115,17 @@ export default function Page() {
     }
   };
 
+  // End of day is minutes of LLM work and is NOT idempotent — a second run
+  // scores the same day again, writing duplicate knowledge chunks and a second
+  // diary entry. A ref rather than state because two calls in the same tick
+  // would both read the same stale state value and both proceed.
+  const endingDay = useRef(false);
+
   const finishDay = useCallback(
     () =>
       guard(async () => {
-        if (!sessionId) return;
+        if (!sessionId || endingDay.current) return;
+        endingDay.current = true;
         setEndProgress(STAGE_COPY.scoring);
         try {
           const result = await streamEndDay(sessionId, (stage) => setEndProgress(STAGE_COPY[stage]));
@@ -126,6 +133,7 @@ export default function Page() {
           setState(await api<GameState>(`/api/session/${sessionId}`));
         } finally {
           setEndProgress(null);
+          endingDay.current = false;
         }
       }),
     [sessionId]

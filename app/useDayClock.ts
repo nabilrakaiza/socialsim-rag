@@ -91,15 +91,25 @@ export function useDayClock(
 
   const advance = useCallback(() => {
     if (!schedule) return;
+
+    // The next index is computed here, NOT inside a setIndex updater, and
+    // onDayComplete fires from here for the same reason.
+    //
+    // A state updater must be pure. React deliberately calls updaters twice in
+    // Strict Mode (on by default in dev) precisely to surface impure ones, so
+    // calling onDayComplete from inside one ran a full end-of-day twice: the
+    // first playthrough's day 1 wrote 8 dynamic chunks and 2 diary entries
+    // where one run writes at most 4 and exactly 1.
+    //
+    // `index` in the dependency list is what makes reading it here safe.
+    const next = nextPlayableIndex(schedule, index + 1);
     setElapsedHours(0);
-    setIndex((current) => {
-      const next = nextPlayableIndex(schedule, current + 1);
-      if (next >= schedule.length) {
-        onDayComplete?.();
-      }
-      return next;
-    });
-  }, [schedule, onDayComplete]);
+    setIndex(next);
+
+    if (next >= schedule.length) {
+      onDayComplete?.();
+    }
+  }, [schedule, index, onDayComplete]);
 
   return useMemo(() => {
     const inGameHour = segment ? segment.startHour + elapsedHours : 24;
