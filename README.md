@@ -265,7 +265,7 @@ There are no accounts. Whoever holds the session id holds the save, which is why
 - **Play a full run.** Day 2 onward has never completed in the UI on a working build, the 15-real-minutes-per-in-game-hour clock has never been sat through, and no ending has been reached by playing rather than seeding
 - **Thin corpora for Shiori and Yuki** — 6 and 7 chunks, so `k=5` returns most of the pool and retrieval barely selects. Prose to write, not code
 - Responsive layout — built desktop-first and never opened on a phone
-- Checkpoint/save system (password-based, session data purged after 1 week of inactivity)
+- Checkpoint/save system (password-based). Today a save is a `session_id` in `localStorage`: clear the browser or switch device and the run is gone
 
 All five endings are fully implemented — there is no missing mechanic behind any of them.
 
@@ -591,6 +591,7 @@ Everything runs on free tiers, with three caveats worth knowing:
 
 - **Vercel Hobby caps function duration at 300s** — see the end-of-day risk above.
 - **Supabase pauses free projects after 7 days of inactivity.** If nobody plays for a week the game breaks until the project is manually resumed; a scheduled ping avoids it.
+- **Sessions are deleted after 30 days idle** by a `pg_cron` job, cascading to messages, diary, events and memory. It was 7 days and, worse, keyed on a column nothing maintained — so it deleted every save seven days after it was *created*, regardless of play. See `supabase/migrations/0003_session_retention.sql`.
 - **Gemini's free tier has daily request caps.** A single day of play is roughly ten LLM calls, so a handful of players can exhaust the daily quota.
 
 There are no accounts and no personal data: whoever holds a `session_id` holds that save, which is why it's a UUID rather than anything guessable.

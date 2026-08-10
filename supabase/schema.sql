@@ -255,10 +255,24 @@ alter table public.events_log enable row level security;
 
 -- 10. SCHEDULED CLEANUP (stale sessions)
 -- ============================================================
--- Deletes any session inactive for 7+ days. Because messages,
+-- Deletes any session inactive for 30+ days. Because messages,
 -- diary_entries, events_log, and lore_chunks (dynamic rows) all
 -- have "on delete cascade" back to game_state, deleting the
 -- game_state row is enough to clean up everything for that session.
+--
+-- This was 7 days and it was NOT an inactivity purge, despite what
+-- this comment used to claim. updated_at defaulted to now() on
+-- insert with no trigger maintaining it and no application code
+-- writing it, so the column was really created_at and the job
+-- deleted every session seven days after it BEGAN, however
+-- actively it was being played. For a thirty-day game that is the
+-- expected path, not an edge case.
+--
+-- Fixed in supabase/migrations/0003_session_retention.sql: a
+-- before-update trigger keeps updated_at honest (section 11), and
+-- the window widened to 30 days now that it means what it says.
+-- Storage is not the constraint here — a whole session is roughly
+-- 100KB against a 500MB free tier.
 
 create extension if not exists pg_cron;
 
@@ -267,9 +281,34 @@ select cron.schedule(
   '0 3 * * *',  -- every day at 3am UTC
   $$
     delete from public.game_state
-    where updated_at < now() - interval '7 days';
+    where updated_at < now() - interval '30 days';
   $$
 );
+
+
+-- 11. updated_at MAINTENANCE
+-- ============================================================
+-- What makes the cleanup job above an inactivity purge rather than
+-- an age purge. Every write the game makes to a session goes
+-- through updateGameState — ending a day, confessing, claiming a
+-- day for scoring — so any real play pushes the retention window
+-- out. Chat alone doesn't touch game_state, but a day with
+-- conversation in it ends in a batch eval that writes affection.
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create trigger game_state_set_updated_at
+  before update on public.game_state
+  for each row
+  execute function public.set_updated_at();
 
 
 -- 11. HELPER FUNCTION: match_lore_hybrid
