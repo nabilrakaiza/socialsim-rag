@@ -78,6 +78,11 @@ create table public.game_state (
   id                    uuid primary key default gen_random_uuid(),
   session_id            text unique not null,   -- frontend-generated session ID
   current_day           integer default 1,
+  -- Day most recently claimed for end-of-day scoring. Written ONLY by
+  -- claim_day_for_scoring / release_day_scoring_claim (section 12) — never
+  -- set it directly. Added 2026-08-10 after a real playthrough had day 1
+  -- scored twice, which is unrepairable rather than merely untidy.
+  scoring_day           integer,
   -- VESTIGIAL as of 2026-07-26: the action-point system was dropped in
   -- favour of the schedule itself being the day's scarcity (see README's
   -- Daily Flow). Nothing reads or writes this column any more. Kept
@@ -287,3 +292,28 @@ select cron.schedule(
 -- (definition kept in supabase/migrations/0001_hybrid_search.sql —
 -- reproduced there in full with its reasoning, rather than
 -- duplicated here where the two copies would drift apart)
+
+
+-- 12. END-OF-DAY CLAIM
+-- ============================================================
+-- endDay is minutes of LLM work and is NOT idempotent: a second run
+-- scores the same day again, writes duplicate knowledge chunks, and
+-- applies affection twice with no record of each run's contribution.
+-- A real playthrough lost its save to exactly that — the two runs
+-- also interpreted the day differently, leaving every character
+-- holding contradictory memories of it.
+--
+-- claim_day_for_scoring(session_id) -> integer
+--   Claims the current day atomically. Returns the day, or NULL when
+--   it is already claimed. The conditional UPDATE is what makes this
+--   safe: two concurrent calls serialise on the row lock, and under
+--   READ COMMITTED the loser re-evaluates its WHERE against the
+--   winner's committed row and matches nothing. A read-then-write in
+--   application code would not have that property.
+--
+-- release_day_scoring_claim(session_id) -> void
+--   Clears the claim. Failure path only — end of day is retryable by
+--   design, and a claim held through a transient model error would
+--   strand the session permanently.
+--
+-- Definitions live in supabase/migrations/0002_end_of_day_claim.sql.

@@ -31,6 +31,8 @@ import {
   updateGameState,
   getAllEventLogs,
   getEventLogsForDay,
+  claimDayForScoring,
+  releaseDayScoringClaim,
   deleteEventLogsByIds,
   insertEventLog,
   updateEventLogAction,
@@ -382,6 +384,34 @@ function findBeat(eventId: string, events: GameEvent[]): BeatRef | null {
 export type EndDayStage = 'scoring' | BatchEvalStage;
 
 export async function endDay(
+  sessionId: string,
+  onProgress?: (stage: EndDayStage) => void
+): Promise<EndDayResult> {
+  // Claimed before any work, because this function is expensive and NOT
+  // idempotent: a second run scores the same day again, writes duplicate
+  // knowledge chunks, and applies affection twice with no record of each run's
+  // contribution — which is unrepairable, not merely untidy. A real
+  // playthrough lost its save to exactly that.
+  //
+  // The claim is atomic in SQL rather than checked here; see
+  // supabase/migrations/0002_end_of_day_claim.sql.
+  const claimedDay = await claimDayForScoring(sessionId);
+  if (claimedDay === null) {
+    throw new Error('end of day is already running for this session');
+  }
+
+  try {
+    return await scoreAndAdvanceDay(sessionId, onProgress);
+  } catch (err) {
+    // Released so a transient model failure stays retryable. End of day is
+    // designed to be retried — a failed run leaves the day unadvanced — and a
+    // claim held through the failure would strand the session for good.
+    await releaseDayScoringClaim(sessionId);
+    throw err;
+  }
+}
+
+async function scoreAndAdvanceDay(
   sessionId: string,
   onProgress?: (stage: EndDayStage) => void
 ): Promise<EndDayResult> {

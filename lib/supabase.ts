@@ -149,6 +149,35 @@ export async function matchLoreHybrid(
   return data;
 }
 
+// Claims the current day for end-of-day scoring. Returns the day on success,
+// null when it is already claimed — see
+// supabase/migrations/0002_end_of_day_claim.sql for why the atomicity has to
+// live in SQL rather than in a read-then-write here.
+export async function claimDayForScoring(sessionId: string): Promise<number | null> {
+  const { data, error } = await supabase.rpc('claim_day_for_scoring', {
+    p_session_id: sessionId,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ?? null;
+}
+
+// Releases the claim so the day can be scored again. Only for the failure
+// path: end of day is retryable by design, and holding a claim through a
+// transient model error would strand the session permanently.
+export async function releaseDayScoringClaim(sessionId: string): Promise<void> {
+  const { error } = await supabase.rpc('release_day_scoring_claim', {
+    p_session_id: sessionId,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function matchLoreMultiCharacter(
   queryEmbedding: number[],
   characters: LoreChunk['character'][],
@@ -196,6 +225,11 @@ export interface GameState {
   confessed: boolean;
   game_over: boolean;
   ending_id: string | null;
+  /**
+   * Day most recently claimed for end-of-day scoring. Managed entirely by
+   * claimDayForScoring / releaseDayScoringClaim — never write it directly.
+   */
+  scoring_day: number | null;
 }
 
 // role reuses DialogueTurn's 'player' | 'npc' union — confirmed as of
