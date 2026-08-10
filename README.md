@@ -278,6 +278,7 @@ npm run dev            # the game, standalone, on :3000
 npm run ingest         # re-embed lore/ into lore_chunks (idempotent)
 npm run eval-retrieval # score retrieval against eval/retrieval-golden.json
 npm run test-query-intent  # held-out check on the greeting gate
+npm run eval-memory        # clustering of a playthrough's generated memory
 npm run typecheck
 ```
 
@@ -408,6 +409,37 @@ It is **split per character**, not shared, because the file is: Shiori knows he'
 `lib/chunking.ts` now throws instead of defaulting when a lore file doesn't map to an NPC. A silent fallback is how 34 chunks ended up in pools nothing could search.
 
 
+### Is per-playthrough memory searchable?
+
+Everything above measures the **37 static chunks** — `eval/retrieval-golden.json` runs with `sessionId: null`. The memory a run generates had never been measured, and it can't be measured the same way: a golden case labels its answer with a substring that must exist before the test runs, and dynamic chunks don't exist until someone plays, in prose the model rewrites every time.
+
+`npm run eval-memory` measures *properties* instead of answers. `scripts/seed-playthrough.ts` builds the corpus by running the real `endDay` for ten days of deliberately unrelated conversations — cycling, a lab report, a food stall, secondary school, rain, succulents. Seeding ten variations of one conversation would have guaranteed the clustering it was meant to detect.
+
+**Two metrics failed before one worked, and both failures are instructive.**
+
+*Exact-query hit@1* — query with a chunk's own stored embedding — scored 100% everywhere. It had to: cosine to itself is 1.0, its own text is its own best lexical match, so it takes rank 1 in both arms and scores `2/(rrf_k+1)`, unbeatable. Guaranteed by construction, not a quality signal.
+
+*Excerpt hit@1* — query with roughly the middle half of a chunk's own words — was meant to fix that, and **also scored 100% everywhere**. The excerpt is verbatim text, so the lexical arm matches its source trivially. Adding full-text search made this class of test easier to pass, not harder.
+
+Both survive as floor checks (they do catch scoping bugs and missing rows), but a test that genuinely discriminates needs **paraphrase** queries — same meaning, different words — which costs an LLM call per chunk or hand-written labels. That's a documented gap, not something to fake.
+
+**The measurement that works is size-matched clustering.** Nearest-neighbour similarity rises with corpus size by chance alone, so an 11-chunk dynamic pool can't be compared against 24 static chunks directly. Subsampling static down to the dynamic pool's size, 400 times, gives a distribution to place it against:
+
+| character | dynamic NN | static, same size | subsamples ≥ dynamic |
+|---|---|---|---|
+| hiyori | **0.884** | 0.796 (p05 0.776, p95 0.818) | **0 / 400** |
+| shiori | 0.884 | 0.842 (p05 0.755, p95 0.887) | 48 / 400 |
+| yuki | 0.859 | 0.858 (p05 0.826, p95 0.901) | 238 / 400 |
+
+Hiyori's pool is the only one with enough chunks to be conclusive, and it is: **not one of 400 size-matched static samples is as tightly clustered as her generated memory.** Shiori and Yuki have 3 chunks each — far too few to say anything, and their rows are noise.
+
+It's also getting worse as the run goes on: her nearest-neighbour mean was **0.799 at 5 chunks** and **0.884 at 11**. A thirty-day run has roughly triple that again.
+
+**So the hypothesis holds.** Every knowledge chunk comes from one prompt with one instruction, and they converge on a single register — *"Adrian did X, she took that to mean Y"* — regardless of how different the days actually were. Consolidating old chunks (item 6) moves from research-shaped to evidence-backed. The `[Day N]` prefix (item 1) helps vary the text but nowhere near enough.
+
+The honest limitation: retrieval quality on this corpus is still unmeasured. Clustering says the chunks are hard to tell apart; it doesn't prove a real query picks the wrong one. That needs paraphrase queries.
+
+
 ### What to fix
 
 Grouped by what each change actually attacks. Ordered so the cheap independent ones land before the two big ones.
@@ -418,7 +450,7 @@ Grouped by what each change actually attacks. Ordered so the cheap independent o
 3. **Persist in-game time.** `messages` has no time column; the timestamps in chat are derived client-side and lost on reload.
 4. ~~**Resolve the two dead pools.**~~ **Done** — see [Unreachable chunks](#unreachable-chunks).
 5. **Re-chunk the long files.** Chunk sizes run 91–1521 chars, a 16× spread; long chunks average out to a mushy centroid and match everything weakly.
-6. **Consolidate old knowledge chunks.** By day 30 each character has ~30 chunks from one prompt in one register — engineered to cluster tightly.
+6. **Consolidate old knowledge chunks.** **Now evidence-backed** — see [Is per-playthrough memory searchable?](#is-per-playthrough-memory-searchable). Hiyori's generated memory is more tightly clustered than any of 400 size-matched samples of static lore, and it tightened from 0.799 to 0.884 between day 5 and day 10.
 
 **The query — what gets asked**
 
@@ -440,7 +472,7 @@ Grouped by what each change actually attacks. Ordered so the cheap independent o
 16. **Stop labelling retrieved chunks as fact.** Five 0.53-similarity misses currently arrive under *"RELEVANT MEMORY (things Hiyori knows)"*.
 17. **Move Adrian's profile out of retrieval and into the prompt.** Four chunks, always relevant to every NPC — retrieval is the wrong mechanism for something that is never *not* relevant.
 
-Items 6 and 13 only pay off on a long run, and day 2+ has never been played in the UI, so they're research-shaped rather than fix-shaped for now.
+Item 13 only pays off on a long run, so it stays research-shaped for now. Item 6 no longer is — the clustering it addresses has been measured.
 
 ### Temporal context
 
