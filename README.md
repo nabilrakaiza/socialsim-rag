@@ -143,7 +143,8 @@ Top-k chunks
   ↓
 Build prompt:
   persona + Adrian profile block + WHEN THIS IS HAPPENING
-  + retrieved chunks + conversation history + relationship stage
+  + retrieved chunks + what she's been through today
+  + conversation history + relationship stage
   ↓
 Dialogue model generates the reply (JSON)
   ↓
@@ -257,6 +258,8 @@ Uniqueness is decided by a case-insensitive index and the resulting `23505` viol
 - A pre-game explainer (`app/components/HowToPlay.tsx`) between Begin and day 1 — who you are, the shape of a day, time as the only currency, **there is no meter**, events in free text, and how it ends. The landing copy set a tone but taught none of it, and the hidden affection meter in particular reads as a missing UI rather than a design if nobody says so
 - Username saves — New game / Continue, so a run survives a cleared browser or a change of device
 - Characters know what time it is (`WHEN THIS IS HAPPENING` in `buildPrompt`) — day number, clock, time-of-day phrase, and current activity, sent from the client since the live clock is client-side state. See [Temporal context](#temporal-context)
+- Characters know what already happened today. The chat prompt gets the events she was present for and Adrian has answered, plus any arc she's in the middle of (`getTodayContext` in `lib/chat.ts`). Before this an event only reached her through the knowledge chunk written at end of day, so asked at dinner about that morning's lecture she had nothing and made it up. Answered-only because all three segments are rolled at the start of the day — tonight's event already has a row at breakfast
+- Randomized event details are seeded by session + day (`detailSeed` in `lib/events.ts`), so a later lookup by id recalls the same bus stop the player was shown. They used to be re-rolled on every lookup, including at end-of-day scoring
 - Knowledge chunks are only written when the day actually revealed something (`notable`), and the knowledge prompt receives correctly attributed turns — it was fed a transcript with Adrian's own lines labelled as the NPC's, and guessed wrong about a third of the time
 - Knowledge chunks carry `[Day N]` in their content, so a memory can be placed in time and near-identical daily updates have something separating them
 - Greeting gate (`lib/query-intent.ts`) — decides whether a message needs memory before anything is embedded, after measuring that neither cosine nor the fused score can separate greetings from real short questions. Clean negatives 0% → 100%, validated on 50 held-out messages (`npm run test-query-intent`)

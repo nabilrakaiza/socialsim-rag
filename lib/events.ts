@@ -119,6 +119,35 @@ function meetsGates(event: GameEvent, input: GateInput): boolean {
   return true;
 }
 
+// An events_log row names either a top-level event or a sub-event. Callers
+// need both: the beat itself for its description/criteria, and its parent for
+// affectedMeter and eventParticipant — sub-events inherit their arc's target
+// and never carry `affects` of their own.
+export interface BeatRef {
+  beat: GameEvent | SubEvent;
+  parent: GameEvent;
+}
+
+// `seed` should be detailSeed() for the row's own session and day, so the
+// randomized details come back as the player saw them. Either way no raw
+// "[activity]" placeholder is ever handed on.
+export function findBeat(eventId: string, events: GameEvent[], seed?: string): BeatRef | null {
+  const topLevel = events.find((event) => event.id === eventId);
+  if (topLevel) {
+    const filled = applyRandomizedDetails(topLevel, seed);
+    return { beat: filled, parent: filled };
+  }
+
+  for (const event of events) {
+    const sub = (event.sub_events ?? []).find((candidate) => candidate.id === eventId);
+    if (sub) {
+      return { beat: sub, parent: event };
+    }
+  }
+
+  return null;
+}
+
 // Flavor-only outcomes for a normal (non-event) activity-segment roll —
 // no event fires, nothing happens mechanically. Kept here as code, not
 // in events.json, since it's a game-design constant, not lore content
@@ -198,6 +227,25 @@ export function eventParticipant(event: GameEvent): 'hiyori' | 'shiori' | 'yuki'
   return event.participant ?? affectedMeter(event);
 }
 
+// FNV-1a. Small, dependency-free, and the same on every run and machine —
+// which is the only property a detail seed needs.
+function hashString(text: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+// The seed for one day's randomized details. Session and day are enough: a
+// regular event can't fire twice in a day, so (session, day, event id) names
+// exactly one firing — and all three are on the events_log row, so nothing
+// extra has to be stored to get the same fill back.
+export function detailSeed(sessionId: string, day: number): string {
+  return `${sessionId}:${day}`;
+}
+
 // Some events carry `[placeholder]` slots in their text with the candidate
 // fills in `randomized_details` — `[activity]` draws from `activity_options`,
 // `[Location]` from `location_options`. Nothing was substituting them, so the
@@ -206,15 +254,33 @@ export function eventParticipant(event: GameEvent): 'hiyori' | 'shiori' | 'yuki'
 // Returns a copy rather than mutating: loadEvents() re-reads the file each
 // call, but mutating shared objects would still be a trap for any caller that
 // holds one across fires.
-export function applyRandomizedDetails(event: GameEvent): GameEvent {
+//
+// With a `seed` the picks are repeatable. events_log stores only an event's id,
+// so anything that looks a beat up again later — end-of-day scoring, the chat
+// prompt's "earlier today" block — has to re-derive which bus stop it was.
+// Unseeded, that second look rolled a fresh one, and a character could recall
+// the 7-Eleven when the player had been shown the MRT. Pass detailSeed() and
+// every lookup of the same event on the same day lands on the same fill.
+//
+// Each slot is chosen once per call, not once per occurrence, so a title and a
+// description that share `[Location]` can't disagree with each other.
+export function applyRandomizedDetails(event: GameEvent, seed?: string): GameEvent {
   const details = event.randomized_details;
   if (!details) return event;
 
+  const chosen = new Map<string, string>();
   const fill = (text: string): string =>
     text.replace(/\[([^\]]+)\]/g, (whole, key: string) => {
-      const options = details[`${key.toLowerCase()}_options`];
+      const slot = key.toLowerCase();
+      const options = details[`${slot}_options`];
       if (!options || options.length === 0) return whole;
-      return options[Math.floor(Math.random() * options.length)];
+      if (!chosen.has(slot)) {
+        const index = seed === undefined
+          ? Math.floor(Math.random() * options.length)
+          : hashString(`${seed}:${event.id}:${slot}`) % options.length;
+        chosen.set(slot, options[index]);
+      }
+      return chosen.get(slot)!;
     });
 
   return {
@@ -238,6 +304,9 @@ export interface SegmentResolutionInput {
   // Sub-events are deliberately NOT filtered this way: ambient beats are
   // written to repeat across an arc, which is the whole reason they exist.
   firedTodayIds: string[];
+  // detailSeed() for the day being resolved. Optional so scripts that only
+  // care which event fires can leave the fill random.
+  detailSeed?: string;
 }
 
 export type SegmentResolutionResult =
@@ -425,5 +494,5 @@ export function resolveActivitySegment(input: SegmentResolutionInput): SegmentRe
   }
 
   const event = eligibleEvents[Math.floor(Math.random() * eligibleEvents.length)];
-  return { firedEvent: true, event: applyRandomizedDetails(event) };
+  return { firedEvent: true, event: applyRandomizedDetails(event, input.detailSeed) };
 }

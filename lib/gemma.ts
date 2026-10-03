@@ -162,13 +162,54 @@ function buildTemporalBlock(context: TemporalContext): string {
   return lines.join('\n');
 }
 
+// What she has already lived through today, outside this conversation.
+//
+// Nothing else in the prompt carries it. Retrieval only finds an event once
+// end of day has written it into her knowledge base, so on the day itself she
+// had no idea it happened: sit next to her in a lecture that morning, mention
+// it at dinner, and she would invent an answer or just go along with him.
+//
+// The caller decides what belongs here — only beats that have actually
+// happened by now, and only ones this character was present for. See
+// lib/chat.ts.
+export interface TodayContext {
+  /** Beats from earlier today, in the order they happened. */
+  events: KnowledgeEventContext[];
+  /** A multi-day arc she is part of that is running right now. */
+  ongoingArc?: { title: string; description: string };
+}
+
+// Returns '' when there is nothing to say, so a quiet day adds no section at
+// all rather than an empty heading the model might try to fill.
+function buildTodayBlock(name: string, today: TodayContext): string {
+  const parts: string[] = [];
+
+  if (today.ongoingArc) {
+    parts.push(`GOING ON THIS WEEK: ${today.ongoingArc.title} — ${today.ongoingArc.description}`);
+  }
+  if (today.events.length > 0) {
+    const list = today.events
+      .map((event, i) => `${i + 1}. ${event.description}\n   What Adrian did: ${event.playerAction}`)
+      .join('\n');
+    parts.push(`EARLIER TODAY, before this conversation:\n${list}`);
+  }
+  if (parts.length === 0) return '';
+
+  return `WHAT ${name.toUpperCase()} HAS BEEN THROUGH WITH ADRIAN — she was there for all of it. It is written from his side, so "you" below means Adrian:
+${parts.join('\n\n')}
+This is her own day, not news to her. If he brings any of it up she remembers it and has her own take on it; otherwise let it sit in the background and don't recite it.
+
+`;
+}
+
 function buildPrompt(
   character: NPCCharacter,
   playerMessage: string,
   chunks: MatchedChunk[],
   history: DialogueTurn[],
   relationshipStage: RelationshipStage,
-  temporal: TemporalContext
+  temporal: TemporalContext,
+  today: TodayContext
 ): string {
   const name = character[0].toUpperCase() + character.slice(1);
 
@@ -196,7 +237,7 @@ Let this stage guide your warmth/guardedness — earlier stages should read more
 RELEVANT MEMORY (things ${name} knows, from the story so far):
 ${memoryText}
 
-CONVERSATION SO FAR:
+${buildTodayBlock(name, today)}CONVERSATION SO FAR:
 ${historyText}
 
 Player just said: "${playerMessage}"
@@ -233,9 +274,10 @@ export async function generateDialogue(
   chunks: MatchedChunk[],
   history: DialogueTurn[],
   relationshipStage: RelationshipStage,
-  temporal: TemporalContext
+  temporal: TemporalContext,
+  today: TodayContext = { events: [] }
 ): Promise<DialogueResult> {
-  const prompt = buildPrompt(character, playerMessage, chunks, history, relationshipStage, temporal);
+  const prompt = buildPrompt(character, playerMessage, chunks, history, relationshipStage, temporal, today);
 
   // Single-turn contents: history is already flattened into the prompt
   // text by buildPrompt, and systemInstruction support is unconfirmed

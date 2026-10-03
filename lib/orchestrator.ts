@@ -46,13 +46,15 @@ import {
   resolveActivitySegment,
   resolveActivitySegmentDuringArc,
   affectedMeter,
-  applyRandomizedDetails,
+  detailSeed,
   eventParticipant,
+  findBeat,
   skipPenalty,
 } from './events';
 import type {
   ActiveExtendedEvent,
   ActivitySegmentName,
+  BeatRef,
   GameEvent,
   SubEvent,
   FlavorActivity,
@@ -251,6 +253,7 @@ export async function startDay(sessionId: string): Promise<DayPlan> {
       affection: gameState.affection,
       yukiAffection: gameState.yuki_affection,
       firedTodayIds,
+      detailSeed: detailSeed(sessionId, gameState.current_day),
     };
 
     // Branched rather than a ternary on purpose: assigning either function's
@@ -349,36 +352,6 @@ export async function recordEventResponse(eventLogId: string, playerAction: stri
   await updateEventLogAction(eventLogId, playerAction);
 }
 
-// An events_log row names either a top-level event or a sub-event. Scoring
-// needs both: the beat itself for its description/criteria, and its parent
-// for affectedMeter — sub-events inherit their arc's target and never carry
-// `affects` of their own.
-interface BeatRef {
-  beat: GameEvent | SubEvent;
-  parent: GameEvent;
-}
-
-function findBeat(eventId: string, events: GameEvent[]): BeatRef | null {
-  const topLevel = events.find((event) => event.id === eventId);
-  if (topLevel) {
-    // Re-randomised rather than recalled: events_log stores only the id, so the
-    // exact detail the player saw isn't recoverable. Which cafe it was doesn't
-    // affect how a response is graded — what matters is that no raw
-    // "[activity]" placeholder is ever handed to the model.
-    const filled = applyRandomizedDetails(topLevel);
-    return { beat: filled, parent: filled };
-  }
-
-  for (const event of events) {
-    const sub = (event.sub_events ?? []).find((candidate) => candidate.id === eventId);
-    if (sub) {
-      return { beat: sub, parent: event };
-    }
-  }
-
-  return null;
-}
-
 // 'scoring' covers grading the day's event responses; the rest come from the
 // batch eval itself. Semantic ids rather than display copy — the wording is
 // the UI's business, not this module's.
@@ -426,7 +399,7 @@ async function scoreAndAdvanceDay(
   // scoring them would charge a skip penalty for the arc merely beginning.
   const scorable = todaysLogs
     .filter((row) => !arcIds.has(row.event_id))
-    .map((row) => ({ row, ref: findBeat(row.event_id, events) }))
+    .map((row) => ({ row, ref: findBeat(row.event_id, events, detailSeed(row.session_id, row.day_triggered)) }))
     // An id with no match means events.json changed under an existing save.
     // Skipping is the safe read: better an unscored beat than a crash.
     .filter((entry): entry is { row: EventLog; ref: BeatRef } => entry.ref !== null);
