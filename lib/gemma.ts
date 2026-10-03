@@ -297,6 +297,14 @@ export interface AffectionDeltaResult {
   delta: number;
 }
 
+// How far one day's conversation can move affection. Lopsided on purpose: a
+// good day can earn up to +8, a bad one costs at most 3. At -8 a single careless
+// conversation undid a full day of good ones, which read as punishing rather
+// than as a consequence. The prompt and the clamp below both read these, so
+// they can't drift apart.
+const CHAT_DELTA_MIN = -3;
+const CHAT_DELTA_MAX = 8;
+
 // Only 'hiyori' | 'yuki' have an affection meter (Shiori doesn't,
 // per game_state's columns) — narrower than NPCCharacter on purpose.
 function buildAffectionDeltaPrompt(
@@ -327,10 +335,10 @@ Judge the delta on:
 - Did Adrian say or do something that respects, amuses, or genuinely connects with her — or something generic, careless, or off-putting given who she is?
 - Effort and attentiveness matter more than surface politeness.
 - No conversation today, or a flat/neutral one, should produce a delta near 0 — don't invent movement that isn't there.
-- Stay within -8 to +8. Daily conversation should never swing affection as hard as a major life event would — those are scored separately and can cross bigger thresholds (see the ±15 diary-trigger check elsewhere in this codebase); keeping chat's range well under that keeps the two systems from stepping on each other.
+- Stay within ${CHAT_DELTA_MIN} to +${CHAT_DELTA_MAX}. The range is lopsided on purpose: one bad conversation should cost a little, not undo days of good ones. Daily conversation should never swing affection as hard as a major life event would — those are scored separately and can cross bigger thresholds (see the ±15 diary-trigger check elsewhere in this codebase); keeping chat's range well under that keeps the two systems from stepping on each other.
 
 Respond with ONLY a single JSON object — no markdown code fences, no extra commentary before or after it:
-{ "delta": <integer from -8 to 8> }`;
+{ "delta": <integer from ${CHAT_DELTA_MIN} to ${CHAT_DELTA_MAX}> }`;
 }
 
 function parseAffectionDeltaResult(rawText: string): AffectionDeltaResult {
@@ -353,12 +361,12 @@ function parseAffectionDeltaResult(rawText: string): AffectionDeltaResult {
 
   const rawDelta = (parsed as { delta: number }).delta;
 
-  // The -8..+8 bound is only a prompt instruction, not something the
+  // The CHAT_DELTA bound is only a prompt instruction, not something the
   // model reliably respects — clamp (don't throw) so an occasional
   // Gemma overshoot degrades to "capped delta" instead of crashing the
   // whole batch eval. Round first so a stray non-integer (e.g. 3.7)
   // doesn't slip into game_state.affection, which is an int column.
-  const delta = Math.max(-8, Math.min(8, Math.round(rawDelta)));
+  const delta = Math.max(CHAT_DELTA_MIN, Math.min(CHAT_DELTA_MAX, Math.round(rawDelta)));
 
   return { delta };
 }
@@ -621,9 +629,10 @@ WHAT ADRIAN (the player) SAID HE WOULD DO:
 "${context.playerAction}"
 
 Pick the tier his response best matches, then a delta:
-- "high" -> +6 to +15
-- "mid" -> -2 to +5
-- "low" -> -15 to -2
+- "high" -> ${tierRange('high')}
+- "mid" -> ${tierRange('mid')}
+- "low" -> ${tierRange('low')}
+Losses are deliberately smaller than gains: handling something badly should cost him, without one mistake wiping out days of progress.
 Judge what he actually described doing, not what he claims about himself. A response that ignores the situation, is empty, or is nonsense is "low". Do not reward stated good intentions that the described action doesn't back up. Events can swing affection harder than ordinary conversation does — a genuinely significant moment handled well or badly is allowed to reach the ends of these ranges.
 
 Respond with ONLY a single JSON object — no markdown code fences, no extra commentary before or after it:
@@ -632,11 +641,26 @@ Respond with ONLY a single JSON object — no markdown code fences, no extra com
 
 // Per-tier clamps, so a tier/delta disagreement can't produce something
 // self-contradictory like tier "low" with a +12 delta.
+//
+// The loss side is much shallower than the gain side on purpose. "low" used to
+// reach -15 and "mid" could dip to -2: one fumbled event cost as much as the
+// best possible response earned, and a merely adequate answer could still lose
+// ground. Now a poor response costs 1-6 and an adequate one never costs
+// anything. The gain side is untouched, so a big event handled well still
+// reaches relationship.ts's 15-point diary threshold by itself.
 const TIER_DELTA_BOUNDS: Record<EventOutcomeResult['tier'], { min: number; max: number }> = {
   high: { min: 6, max: 15 },
-  mid: { min: -2, max: 5 },
-  low: { min: -15, max: -2 },
+  mid: { min: 0, max: 5 },
+  low: { min: -6, max: -1 },
 };
+
+// The range as the prompt states it — built from the table above so the model
+// is never told one range and clamped to another.
+function tierRange(tier: EventOutcomeResult['tier']): string {
+  const signed = (value: number) => (value > 0 ? `+${value}` : `${value}`);
+  const { min, max } = TIER_DELTA_BOUNDS[tier];
+  return `${signed(min)} to ${signed(max)}`;
+}
 
 function parseEventOutcomeResult(rawText: string): EventOutcomeResult {
   const cleaned = rawText

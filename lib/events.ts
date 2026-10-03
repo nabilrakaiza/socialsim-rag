@@ -189,20 +189,20 @@ export function loadEvents(): GameEvent[] {
 }
 
 // Skipping an event isn't the same as handling one badly — it's passive,
-// so it costs less than the -15..-2 a genuinely poor response can. But it
-// isn't free either: ignoring something is still a choice the characters
-// would notice. Scaled by how much the beat mattered, which the data
-// already tells us: an ambient beat repeats and missing one barely
-// registers, while a final-day beat is the moment the whole arc built to.
+// so it costs less than the -6..-1 a genuinely poor response can. Scaled by
+// how much the beat mattered, which the data already tells us: an ambient beat
+// repeats all through an arc, so missing one costs nothing (at -1 each they
+// quietly added up to more than the arc's real beats), while a final-day beat
+// is the moment the whole arc built to and ignoring it is still noticed.
 //
 // Applied by the orchestrator INSTEAD of calling generateEventOutcome when
 // no player_action was recorded — an unanswered event should never reach
 // the LLM, which would grade the silence as a poor response and charge the
 // full penalty.
 export const SKIP_PENALTIES = {
-  ambient: -1,
-  standard: -3,
-  finalDay: -5,
+  ambient: 0,
+  standard: -1,
+  finalDay: -2,
 } as const;
 
 export function skipPenalty(beat: GameEvent | SubEvent): number {
