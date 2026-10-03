@@ -304,9 +304,41 @@ export interface SegmentResolutionInput {
   // Sub-events are deliberately NOT filtered this way: ambient beats are
   // written to repeat across an arc, which is the whole reason they exist.
   firedTodayIds: string[];
+  // How many times each regular event has fired so far this playthrough, by
+  // id. Missing means never. Drives repeatWeight below.
+  firedCounts: Record<string, number>;
   // detailSeed() for the day being resolved. Optional so scripts that only
   // care which event fires can leave the fill random.
   detailSeed?: string;
+}
+
+// How much less likely an event becomes each time it has already fired:
+// weight = 1 / (1 + timesFired) ^ exponent. At 2, an event seen once is a
+// quarter as likely as an unseen one, seen twice a ninth.
+//
+// The pick used to be uniform with no memory past the current day, so the same
+// event could land three days running while others in the pool had never
+// fired. Weighting spends the unseen ones first.
+//
+// It evens repeats out; it cannot remove them. Once everything eligible has
+// fired equally often the weights are level again — at Stranger only four
+// events are eligible at all, and no weighting makes four events feel like
+// thirty days of content. That needs more events, not a different exponent.
+export const REPEAT_WEIGHT_EXPONENT = 2;
+
+export function repeatWeight(timesFired: number): number {
+  return 1 / (1 + timesFired) ** REPEAT_WEIGHT_EXPONENT;
+}
+
+function pickWeighted<T>(items: T[], weightOf: (item: T) => number): T {
+  const weights = items.map(weightOf);
+  let roll = Math.random() * weights.reduce((sum, weight) => sum + weight, 0);
+  for (let i = 0; i < items.length; i++) {
+    roll -= weights[i];
+    if (roll < 0) return items[i];
+  }
+  // Only reachable through float rounding on the last subtraction.
+  return items[items.length - 1];
 }
 
 export type SegmentResolutionResult =
@@ -493,6 +525,6 @@ export function resolveActivitySegment(input: SegmentResolutionInput): SegmentRe
     return { firedEvent: false, flavor };
   }
 
-  const event = eligibleEvents[Math.floor(Math.random() * eligibleEvents.length)];
+  const event = pickWeighted(eligibleEvents, (candidate) => repeatWeight(input.firedCounts[candidate.id] ?? 0));
   return { firedEvent: true, event: applyRandomizedDetails(event, input.detailSeed) };
 }

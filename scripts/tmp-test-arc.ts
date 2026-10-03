@@ -31,6 +31,7 @@ function simulateArc(arcId: string, startDay: number): SimResult {
         currentDay: day,
         activeEvent: active,
         firedTodayIds: [],
+        firedCounts: {},
         currentStage: 'Friend',
         affection: 60,
         yukiAffection: 60,

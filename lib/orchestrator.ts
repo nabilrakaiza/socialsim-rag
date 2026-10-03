@@ -245,6 +245,13 @@ export async function startDay(sessionId: string): Promise<DayPlan> {
   const segments: ResolvedSegment[] = [];
   // Accumulated across segments so a regular event can't fire twice in one day.
   const firedTodayIds: string[] = [];
+  // Every earlier firing this playthrough, by id, so the pick can lean away
+  // from what the player has already seen. Arc and sub-event rows get counted
+  // too, harmlessly: only regular event ids are ever looked up.
+  const firedCounts: Record<string, number> = {};
+  for (const log of allEventsLogs) {
+    firedCounts[log.event_id] = (firedCounts[log.event_id] ?? 0) + 1;
+  }
 
   for (const segment of ACTIVITY_SEGMENTS) {
     const gates = {
@@ -253,6 +260,7 @@ export async function startDay(sessionId: string): Promise<DayPlan> {
       affection: gameState.affection,
       yukiAffection: gameState.yuki_affection,
       firedTodayIds,
+      firedCounts,
       detailSeed: detailSeed(sessionId, gameState.current_day),
     };
 
@@ -287,6 +295,7 @@ export async function startDay(sessionId: string): Promise<DayPlan> {
     // Only top-level events are tracked — sub-events are meant to repeat.
     if (!subEvent) {
       firedTodayIds.push(event.id);
+      firedCounts[event.id] = (firedCounts[event.id] ?? 0) + 1;
     }
 
     const row = await insertEventLog({
