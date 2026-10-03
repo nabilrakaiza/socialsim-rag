@@ -29,34 +29,54 @@ import type { RelationshipStage } from './relationship';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY ?? '' });
 
-// Model choice, measured rather than assumed. On a realistic dialogue prompt
-// (persona + retrieved lore + history), averaged over 3 runs each:
+// Model choice, measured rather than assumed. On the real dialogue prompt
+// (persona + retrieved lore + history, ~1240 tokens), re-measured 2026-10-03
+// with scripts/tmp-bench-flash-lite.ts:
 //
-//   gemini-3.6-flash       5.2s   — fastest, but its free-tier rpm is far
-//                                   below Gemma's 30, so it's ruled out for a
-//                                   game that fires calls in bursts
-//   gemini-3.1-flash-lite  12.4s
-//   gemma-4-26b-a4b-it     14.1s
-//   gemini-3.5-flash-lite  times out entirely on this key — do not use
+//   gemini-3.5-flash-lite  1.0-1.8s over 8 runs; 9 concurrent calls all ok
+//   gemini-3.1-flash-lite  0.8-1.6s in one pass, 2.1-9.3s in the next — as
+//                          fast at its best, but much less steady
+//   gemma-4-26b-a4b-it     ~14s (not re-measured)
+//   gemini-3.6-flash       ruled out: its free-tier rpm is far below Gemma's
+//                          30, no good for a game that fires calls in bursts
 //
-// Note the "-lite" naming is misleading here: 3.5-lite is unusable and 3.1-lite
-// is barely faster than Gemma. Expect roughly 12-14s per chat reply.
+// These drift. Three months earlier 3.5-lite timed out on every call with this
+// key and 3.1-lite took 12s — so re-run the benchmark before trusting any of
+// the numbers above, and keep the slower models in the chain rather than
+// assuming today's fastest stays that way.
 //
-// Each list is a fallback chain, tried in order, so a rate limit or transient
-// failure on the first model falls through instead of failing the call. The two
-// chains lead with different models on purpose: that splits load across two
-// separate quota pools, so end-of-day batch work (which fires ~9 calls at once)
-// doesn't exhaust the same budget the player's chat depends on. Batch leads with
-// Gemma because it has the higher rpm and is what the prompts were tuned against.
-const DIALOGUE_MODELS = ['gemini-3.1-flash-lite', 'gemma-4-26b-a4b-it'] as const;
+// Each list is a fallback chain, tried in order, so a rate limit, exhausted
+// quota or timeout on the first model falls through instead of failing the
+// call. The dialogue and batch chains lead with different models on purpose:
+// that splits load across separate quota pools, so end-of-day batch work (which
+// fires ~9 calls at once) doesn't exhaust the same budget the player's chat
+// depends on. Batch leads with Gemma because it has the higher rpm and is what
+// the prompts were tuned against.
+const DIALOGUE_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemma-4-26b-a4b-it'] as const;
 const BATCH_MODELS = ['gemma-4-26b-a4b-it', 'gemini-3.1-flash-lite'] as const;
+
+// A call that hangs never throws, so without a deadline the chain would sit on
+// its first model forever instead of falling through — which is exactly how
+// 3.5-lite used to fail. Flash-lite answers in a second or two when healthy, so
+// 20s is long past "slow" and into "not coming". Gemma gets no deadline: a
+// diary entry legitimately takes it about a minute.
+const FLASH_LITE_TIMEOUT_MS = 20_000;
+
+function timeoutFor(model: string): number | undefined {
+  return model.includes('flash-lite') ? FLASH_LITE_TIMEOUT_MS : undefined;
+}
 
 async function generateWithFallback(models: readonly string[], prompt: string): Promise<string> {
   const failures: string[] = [];
 
   for (const model of models) {
     try {
-      const response = await ai.models.generateContent({ model, contents: prompt });
+      const timeout = timeoutFor(model);
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        ...(timeout ? { config: { httpOptions: { timeout } } } : {}),
+      });
       if (response.text) {
         return response.text;
       }
@@ -630,7 +650,7 @@ export async function generateEventOutcome(context: EventOutcomeContext): Promis
 // the moment a player least wants to sit watching a spinner.
 // ============================================================
 
-const REFLECTION_MODELS = ['gemini-3.1-flash-lite', 'gemma-4-26b-a4b-it'] as const;
+const REFLECTION_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemma-4-26b-a4b-it'] as const;
 
 export type EndingKind = 'good_end' | 'friend_zone_end' | 'bad_end' | 'too_late_end' | 'secret_end';
 

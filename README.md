@@ -112,7 +112,7 @@ One content bug worth recording: `ENDING_FRAMING` originally used bare pronouns,
 
 | Layer | Tool |
 |---|---|
-| LLM | Google AI Studio free tier. Each call type has its own fallback chain across two quota pools — `gemini-3.1-flash-lite` then `gemma-4-26b-a4b-it` for dialogue, reversed for batch work (`lib/gemma.ts`) |
+| LLM | Google AI Studio free tier. Each call type has its own fallback chain across separate quota pools — `gemini-3.5-flash-lite`, then `gemini-3.1-flash-lite`, then `gemma-4-26b-a4b-it` for dialogue; Gemma then `gemini-3.1-flash-lite` for batch work (`lib/gemma.ts`) |
 | Embeddings | Google `gemini-embedding-001`, truncated to 768-dim (`text-embedding-004` was shut down by Google before this project reached ingestion) |
 | Retrieval | Supabase pgvector (dense) + Postgres full-text search (sparse), fused with RRF |
 | Database | Supabase (game state, messages, diary entries, events log) |
@@ -215,7 +215,7 @@ Uniqueness is decided by a case-insensitive index and the resulting `23505` viol
 
 > **Known risk before deploying:** Vercel's Hobby plan allows **300s as both the default and the maximum** function duration (Pro reaches 800s). The slowest observed end-of-day used 264s of that — 88% — so a slower run returns a 504 and strands the player mid-day-end. The durable fix is splitting this into two requests (score events, then batch-eval) so neither approaches the cap. Until then the UI states the wait can reach about five minutes.
 
-**Model choice is split by whether anyone is waiting.** Player-facing dialogue leads with `gemini-3.1-flash-lite`; end-of-day batch work leads with Gemma, which has the higher rate limit and is what the prompts were tuned against. Each is a fallback chain, so a rate limit falls through to the other model instead of failing the call — and leading them with different models splits load across two quota pools, so batch work can't starve the player's chat.
+**Model choice is split by whether anyone is waiting.** Player-facing dialogue leads with `gemini-3.5-flash-lite`, falling back to `gemini-3.1-flash-lite` and then Gemma; end-of-day batch work leads with Gemma, which has the higher rate limit and is what the prompts were tuned against. Each is a fallback chain, so a rate limit, exhausted quota or timeout (20s on the flash-lite models) falls through to the next model instead of failing the call — and leading them with different models splits load across separate quota pools, so batch work can't starve the player's chat.
 
 ---
 
