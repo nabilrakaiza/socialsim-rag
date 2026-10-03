@@ -542,3 +542,16 @@ export async function updateEventLogOutcome(
     throw new Error(error.message);
   }
 }
+
+// The cheapest query that still reaches Postgres through the API — what the
+// keep-alive cron calls. Reads one id and returns nothing: the request itself
+// is the point, since Supabase pauses a free project after a week without any.
+// Hits lore_chunks rather than game_state because the static corpus is always
+// there; game_state can legitimately be empty.
+export async function pingDatabase(): Promise<void> {
+  const { error } = await supabase.from('lore_chunks').select('id').limit(1);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}

@@ -205,6 +205,7 @@ The browser never imports `lib/` at runtime. `lib/supabase.ts` holds `SERVICE_RO
 | `POST /api/event/respond` | `recordEventResponse` | Persists free text; scoring waits for end of day |
 | `POST /api/day/end` | `endDay` | 1m40s–4m24s. **Streams NDJSON progress** — see below |
 | `POST /api/confess` | `confess` | Ends the run |
+| `GET /api/cron/keepalive` | `pingDatabase` | Called daily by Vercel Cron (`vercel.json`) so the Supabase project never sits idle long enough to be paused. Requires `Authorization: Bearer $CRON_SECRET` when that env var is set |
 
 There are no accounts. Whoever holds the session id holds the save, which is why it's a UUID; the client keeps it in `localStorage`.
 
@@ -600,7 +601,7 @@ Saves survive deploys: sessions live in Supabase keyed by a `session_id` held in
 Everything runs on free tiers, with three caveats worth knowing:
 
 - **Vercel Hobby caps function duration at 300s** — see the end-of-day risk above.
-- **Supabase pauses free projects after 7 days of inactivity.** If nobody plays for a week the game breaks until the project is manually resumed; a scheduled ping avoids it.
+- **Supabase pauses free projects after 7 days of inactivity.** If nobody played for a week the game broke until the project was manually resumed. A daily Vercel cron now hits `GET /api/cron/keepalive`, which runs one small read. Set `CRON_SECRET` in the Vercel project so only Vercel can call it. The nightly `pg_cron` cleanup doesn't appear to count as activity, since it never leaves the database.
 - **A save is found again by a username**, not a password. It's an identifier, so anyone who guesses one can open — and, by confessing, permanently end — that run. Accepted for a one-field flow on a hobby project; written down so nothing gets built on top of it that needs real auth.
 - **Sessions are deleted after 30 days idle** by a `pg_cron` job, cascading to messages, diary, events and memory. It was 7 days and, worse, keyed on a column nothing maintained — so it deleted every save seven days after it was *created*, regardless of play. See `supabase/migrations/0003_session_retention.sql`.
 - **Gemini's free tier has daily request caps.** A single day of play is roughly ten LLM calls, so a handful of players can exhaust the daily quota.
