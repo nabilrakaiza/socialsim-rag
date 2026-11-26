@@ -23,11 +23,12 @@
 // ============================================================
 
 import { GoogleGenAI } from '@google/genai';
+import { requireEnv } from './env';
 import type { MatchedChunk } from './supabase';
 import { adrianProfileFor } from './adrian-profile';
 import type { RelationshipStage } from './relationship';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY ?? '' });
+const ai = new GoogleGenAI({ apiKey: requireEnv('GOOGLE_API_KEY') });
 
 // Model choice, measured rather than assumed. On the real dialogue prompt
 // (persona + retrieved lore + history, ~1240 tokens), re-measured 2026-10-03

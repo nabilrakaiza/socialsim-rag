@@ -1,8 +1,110 @@
 # social-sim-rag
 
+[![verify](https://github.com/nabilrakaiza/socialsim-rag/actions/workflows/verify.yml/badge.svg)](https://github.com/nabilrakaiza/socialsim-rag/actions/workflows/verify.yml)
+
 A narrative, RAG-powered dating simulation built as a learning project for retrieval-augmented generation (RAG) architecture. The gameplay is a wrapper — the real point of this project is to design and implement a working RAG pipeline end to end: chunking, embedding, vector storage, retrieval, and grounded LLM generation.
 
 > Working title: `social-sim-rag'
+
+---
+
+## Quick start
+
+This takes about ten minutes from a fresh clone to the game running locally, with the retrieval eval reproduced.
+
+**You need:**
+
+- **Node 22.** With nvm, `nvm use` picks it up from `.nvmrc`.
+- **A running Docker engine**, for the local Supabase stack. Docker Desktop, Colima (`colima start`) or OrbStack all work. If you'd rather not use Docker, see [Without Docker](#without-docker) below.
+- **A Gemini API key.** The free tier at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) is enough.
+
+**1. Install and check.** `verify` runs the typecheck and the offline greeting-gate test. It needs no keys and no database, so it should pass straight after install.
+
+```bash
+npm ci
+```
+
+```bash
+npm run verify
+```
+
+**2. Start the database.** This starts Supabase in Docker and applies every migration in `supabase/migrations/`. The first run pulls images and takes a few minutes.
+
+```bash
+npx supabase start
+```
+
+**3. Create `.env`.**
+
+```bash
+cp .env.example .env
+```
+
+```bash
+npx supabase status -o env
+```
+
+In `.env`, set `SERVICE_ROLE` to the `SERVICE_ROLE_KEY` value from that output and `GOOGLE_API_KEY` to your Gemini key. `SUPABASE_URL` already points at the local stack. A script that runs without them stops with `Missing SERVICE_ROLE: copy .env.example to .env…`, not a stack trace.
+
+**4. Embed the lore and run the retrieval eval.**
+
+```bash
+npm run ingest
+```
+
+```bash
+npm run eval-retrieval -- --hybrid
+```
+
+`ingest` should finish with `Inserted 37 chunks: { hiyori: 24, shiori: 6, yuki: 7 }`. The eval's summary should match `eval/baseline.json` and read `unchanged` against it:
+
+| metric | expected |
+|---|---|
+| hit rate (positive) | 88% |
+| MRR | 0.786 |
+| clean negatives | 100% |
+| mean chunks returned | 3.7 |
+
+Ranking is deterministic (see [Measuring it: the golden set](#measuring-it-the-golden-set)). Similarity values come from the Gemini embedding API, so `mean spread` can move in the third decimal place.
+
+**5. Play.**
+
+```bash
+npm run dev
+```
+
+Then open [localhost:3000](http://localhost:3000). When you're done, `npx supabase stop` shuts the database down.
+
+### Other scripts
+
+| command | what it does | needs |
+|---|---|---|
+| `npm run verify` | typecheck plus the offline greeting-gate test | nothing |
+| `npm run ingest` | re-embed `lore/` into `lore_chunks`. Deletes and re-inserts the static rows, so it's idempotent | `.env`, database |
+| `npm run eval-retrieval` | score retrieval against `eval/retrieval-golden.json`. Add `--hybrid` for what the game runs, `--save` to overwrite the baseline | `.env`, database, ingested lore |
+| `npm run test-query-intent` | held-out check on the greeting gate | nothing |
+| `npm run seed-playthrough` | build a 10-day session by running the real pipeline (~20 min, many Gemini calls) | `.env`, database |
+| `npm run eval-memory` | clustering of a playthrough's generated memory | a seeded playthrough |
+
+`scripts/dev/` holds one-off probes from development. They aren't needed to run or evaluate anything.
+
+### Without Docker
+
+You can use a free hosted Supabase project instead. Create one at [supabase.com](https://supabase.com), then link it and push the migrations, replacing `<project-ref>` with your project's reference ID:
+
+```bash
+npx supabase login
+```
+
+```bash
+npx supabase link --project-ref <project-ref>
+```
+
+```bash
+npx supabase db push
+```
+
+Set `SUPABASE_URL` and `SERVICE_ROLE` in `.env` from Dashboard › Project Settings › API, then continue from step 4.
 
 ---
 
@@ -189,6 +291,8 @@ Target size: 150–400 tokens per chunk.
 
 Adrian does **not** have a dynamic knowledge base — only Hiyori, Shiori, and Yuki maintain evolving perceptions of him.
 
+All of `lore/` is original writing for this project. The characters, events and diary entries are fictional and aren't drawn from any existing game, book or real person.
+
 ---
 
 ## Frontend and the API boundary
@@ -227,20 +331,20 @@ Uniqueness is decided by a case-insensitive index and the resulting `23505` viol
 - Core game design (daily flow, schedule/time system, event system, ending conditions)
 - Full lore documents for all 4 characters
 - `events.json` finalized with capped extended-event durations and sub-events
-- Supabase schema live (`lore_chunks`, `game_state`, `messages`, `diary_entries`, `events_log`) — note the live `lore_chunks` table and RPCs diverged from the originally drafted `supabase/schema.sql` (see `lib/supabase.ts` for the current, accurate contract)
+- Supabase schema live (`lore_chunks`, `game_state`, `messages`, `diary_entries`, `events_log`), reproducible from `supabase/migrations/` on an empty project; `supabase/schema.sql` is a commented snapshot of the same end state
 - Full RAG ingestion pipeline built and verified end-to-end: `lib/chunking.ts` → `lib/embeddings.ts` → `lib/supabase.ts` → `scripts/ingest.ts` → `scripts/test-retrieval.ts`
 - 61 static lore chunks embedded and ingested into `lore_chunks`; retrieval manually verified against real queries
 - Gemma integration for NPC dialogue (`lib/gemma.ts`'s `generateDialogue`), grounded in retrieved lore + relationship stage
 - Relationship tier/stage + diary-trigger logic (`lib/relationship.ts`)
-- End-of-day batch evaluation (`lib/batch-eval.ts`'s `runEndOfDayBatchEval`) — updates per-NPC knowledge chunks, affection score, relationship stage, and diary entries (with RAG re-indexing). Verified end-to-end against the live DB + Gemini API (`scripts/tmp-test-batch-eval.ts`); independent Gemini calls run concurrently with a retry-once-after-60s wrapper for rate-limit resilience
-- Retrieval scoping fix — `match_lore_chunks`/`match_lore_multi_character` now filter by `is_static`/`session_id` (see `lore_chunks` table design above), verified against real dynamic + static data (`scripts/tmp-test-retrieval-scoping.ts`)
-- Single-turn chat handling (`lib/chat.ts`'s `sendPlayerMessage`) — retrieval + `generateDialogue` + persistence to `messages`, verified end-to-end (`scripts/tmp-test-chat.ts`), including that history stays correctly scoped to one character and one conversation continues coherently across turns
-- Daily schedule generation (`lib/schedule.ts`'s `generateDailySchedule`), per the Schedule Generation section above, verified via `scripts/tmp-test-schedule.ts`
-- Random event system (`lib/events.ts`), per the Event System section above — normal-day segment resolution, extended-event triggering, and in-arc sub-event resolution. Verified by simulation (`scripts/tmp-test-events.ts`, `scripts/tmp-test-arc.ts`): across 500 simulated runs of all 13 arcs, every sub-event lands and no final-day beat ever fires off the final day
+- End-of-day batch evaluation (`lib/batch-eval.ts`'s `runEndOfDayBatchEval`) — updates per-NPC knowledge chunks, affection score, relationship stage, and diary entries (with RAG re-indexing). Verified end-to-end against the live DB + Gemini API (`scripts/dev/tmp-test-batch-eval.ts`); independent Gemini calls run concurrently with a retry-once-after-60s wrapper for rate-limit resilience
+- Retrieval scoping fix — `match_lore_chunks`/`match_lore_multi_character` now filter by `is_static`/`session_id` (see `lore_chunks` table design above), verified against real dynamic + static data (`scripts/dev/tmp-test-retrieval-scoping.ts`)
+- Single-turn chat handling (`lib/chat.ts`'s `sendPlayerMessage`) — retrieval + `generateDialogue` + persistence to `messages`, verified end-to-end (`scripts/dev/tmp-test-chat.ts`), including that history stays correctly scoped to one character and one conversation continues coherently across turns
+- Daily schedule generation (`lib/schedule.ts`'s `generateDailySchedule`), per the Schedule Generation section above, verified via `scripts/dev/tmp-test-schedule.ts`
+- Random event system (`lib/events.ts`), per the Event System section above — normal-day segment resolution, extended-event triggering, and in-arc sub-event resolution. Verified by simulation (`scripts/dev/tmp-test-events.ts`, `scripts/dev/tmp-test-arc.ts`): across 500 simulated runs of all 13 arcs, every sub-event lands and no final-day beat ever fires off the final day
 - Event content expanded to 13 extended arcs (up from 3) spanning the affection range, plus per-arc ambient sub-events so an active arc actually fills its days
 
 - Ending resolution (`lib/endings.ts`) and free-text event scoring (`generateEventOutcome`), with skipping an event scored deterministically instead — an unanswered event never reaches the LLM, which grades silence as a poor response and would conflate not engaging with fumbling
-- Game loop orchestrator (`lib/orchestrator.ts`) — the full daily flow, with all extended-event state reconstructed from `events_log` rather than stored. Verified end-to-end against the live DB and API, including that an arc's start row isn't mistaken for an unanswered beat, and that `affects` routes deltas to the right meter (`scripts/tmp-test-orchestrator*.ts`, `scripts/tmp-test-yuki-routing.ts`)
+- Game loop orchestrator (`lib/orchestrator.ts`) — the full daily flow, with all extended-event state reconstructed from `events_log` rather than stored. Verified end-to-end against the live DB and API, including that an arc's start row isn't mistaken for an unanswered beat, and that `affects` routes deltas to the right meter (`scripts/dev/tmp-test-orchestrator*.ts`, `scripts/dev/tmp-test-yuki-routing.ts`)
 - Events now feed each NPC's knowledge base, attributed by `participant` so a character only learns from what she was actually present for
 - Confession (`confess()`), resolving immediately at any point in the run
 
@@ -267,7 +371,7 @@ Uniqueness is decided by a case-insensitive index and the resulting `23505` viol
 - Hybrid retrieval (`match_lore_hybrid`) — Postgres full-text search fused with vector search via Reciprocal Rank Fusion, now the production path in `lib/chat.ts`. Rank-1 hits on the golden set went from 8 of 17 to 13 of 17. See [Hybrid retrieval](#hybrid-retrieval)
 - Retrieval evaluation harness (`npm run eval-retrieval`) — 23 hand-labelled cases scored on hit rate, MRR, clean negatives and similarity spread, with a saved baseline and per-run deltas. Labels are validated against the live corpus before scoring, since a label matching nothing scores identically to a retrieval failure
 - `lore_chunks.source_file` stores the bare filename instead of an absolute path, so anything comparing against it works on any machine and on Vercel
-- The ending explains itself (`lib/ending-reflection.ts`) — the accumulated diary and knowledge chunks are finally read back to the player instead of only feeding retrieval. See [Why the ending happened](#why-the-ending-happened). Verified against a seeded end-state (`scripts/tmp-test-ending-reflection.ts`) and, for the first time, in the browser: the closing entry, the collapsible archive, and the conditional Yuki epilogue all render
+- The ending explains itself (`lib/ending-reflection.ts`) — the accumulated diary and knowledge chunks are finally read back to the player instead of only feeding retrieval. See [Why the ending happened](#why-the-ending-happened). Verified against a seeded end-state (`scripts/dev/tmp-test-ending-reflection.ts`) and, for the first time, in the browser: the closing entry, the collapsible archive, and the conditional Yuki epilogue all render
 
 **Next up:**
 - **Play a full run.** Day 2 onward has never completed on a working build — the one previous multi-day attempt was on the build with the double-fire bug and had to be deleted. Five things have changed underneath the game since (the day-scoring guard, attribution, `notable`, temporal context, retention) and none have been exercised across a real run. Arc continuation across days, the 15-real-minutes-per-in-game-hour clock, and an ending reached by playing rather than seeding are all still unknown
@@ -283,17 +387,7 @@ All five endings are fully implemented — there is no missing mechanic behind a
 
 ## Running locally
 
-Needs `SUPABASE_URL`, `SERVICE_ROLE` and `GOOGLE_API_KEY` in `.env`.
-
-```bash
-npm run dev            # the game, standalone, on :3000
-npm run ingest         # re-embed lore/ into lore_chunks (idempotent)
-npm run eval-retrieval # score retrieval against eval/retrieval-golden.json
-npm run test-query-intent  # held-out check on the greeting gate
-npm run eval-memory        # clustering of a playthrough's generated memory
-npm run seed-playthrough   # build a 10-day session by running the real pipeline (~20 min)
-npm run typecheck
-```
+Setup and every script are in [Quick start](#quick-start). Notes on what to expect once it's running:
 
 Playing writes real rows to Supabase — `game_state`, `messages`, `events_log`, and per-session `lore_chunks`. They're scoped by `session_id`, so clearing test playthroughs never touches the 37 static lore rows (`is_static = true`).
 
@@ -344,14 +438,18 @@ Six of the 23 cases are **negatives that expect nothing at all**. Without them, 
 
 **Results.** Vector-only was the baseline; hybrid retrieval (below) is now what the game runs:
 
-| | vector-only | + hybrid | + greeting gate |
-|---|---|---|---|
-| hit rate (positive) | 88% | 88% | 88% |
-| MRR | 0.471 | 0.598 | **0.859** |
-| positives at rank 1 | 8 of 17 | **13 of 17** | 13 of 17 |
-| clean negatives | 0% | 0% | **100%** |
-| mean spread | 0.067 | 0.096 | 0.106 |
-| mean chunks returned | 4.8 | 5.0 | **3.7** |
+| | vector-only | + hybrid | + greeting gate | + deterministic ties |
+|---|---|---|---|---|
+| hit rate (positive) | 88% | 88% | 88% | 88% |
+| MRR | 0.471 | 0.598 | 0.859 | **0.786** |
+| positives at rank 1 | 8 of 17 | **13 of 17** | 13 of 17 | 10 of 17 |
+| clean negatives | 0% | 0% | **100%** | 100% |
+| mean spread | 0.067 | 0.096 | 0.106 | 0.106 |
+| mean chunks returned | 4.8 | 5.0 | **3.7** | 3.7 |
+
+**The last column is the one to reproduce.** It's what `eval/baseline.json` holds and what a fresh clone scores. The earlier columns were measured on the live database before ties were broken deterministically, and they were partly luck. At `rrf_k=3`, ranks (1st vector, 2nd lexical) and (2nd vector, 1st lexical) give exactly the same fused score, and `ts_rank` often ties on a corpus this small. Every `ORDER BY` sorted on the score alone, so Postgres broke ties by physical row order, which depends on the database's insert history. The same code and lore scored 0.859 on live and 0.815 on a fresh clone.
+
+`20261126000000_hybrid_search_deterministic_ties.sql` breaks every tie by cosine distance, then by `(source_file, chunk_index)`, so every database gives the same ranking. Honest tie-breaking cost three rank-1 hits: `hobbies-direct`, `cycling-invite` and `brother-casual` each had the labelled chunk tied for first and now land at rank 2. In `brother-casual` (*"how's Ren doing"*), for example, the lexical arm can't tell `HIYORI FAMILY` from a diary entry that also mentions Ren, and the diary entry is slightly closer in embedding space (0.570 vs 0.542).
 
 Two results stood out on the vector-only run. **Clean negatives is 0%** — all six greetings and acknowledgements return a full set of chunks, and hybrid doesn't fix that (see below). And **mean chunks returned was 4.8 of a possible 5**, confirming the 0.5 threshold filters essentially nothing.
 
@@ -370,7 +468,7 @@ One surprise: `"durian?"` — a single word — ranks its chunk **first**, becau
 
 ### Hybrid retrieval
 
-`match_lore_hybrid` (see `supabase/migrations/0001_hybrid_search.sql`) runs full-text search alongside the vector search and fuses the two with Reciprocal Rank Fusion. `lib/chat.ts` calls it; `matchLoreChunks` is kept so both paths stay scoreable against the golden set.
+`match_lore_hybrid` (see `supabase/migrations/20260810030640_hybrid_search.sql`, with tie-breaking from `20261126000000_hybrid_search_deterministic_ties.sql`) runs full-text search alongside the vector search and fuses the two with Reciprocal Rank Fusion. `lib/chat.ts` calls it; `matchLoreChunks` is kept so both paths stay scoreable against the golden set.
 
 **Why fusion rather than replacement.** The two methods are wrong about different queries. FTS found both cases vector missed entirely (`"sorry i'm late"`, `"you look tired"`) and returned exactly one candidate for `"durian?"` where vector returned five indistinguishable ones. But FTS is wrong where vector is right: for `"grab lunch"` it matches a diary entry mentioning lunch rather than `FOOD PREFERENCES`, which never uses the word. Neither arm is better — they fail differently, which is the entire premise.
 
@@ -383,6 +481,8 @@ One surprise: `"durian?"` — a single word — ranks its chunk **first**, becau
 3. `FULL OUTER JOIN`, and coalesce the missing **term** to 0, not the missing **rank**. Rank 0 scores `1/k`, which outranks a genuine first place.
 
 **Tuning.** `rrf_k` controls how much rank 1 dominates: low k trusts each arm's own ordering, high k rewards agreement. The literature default of 60 scored MRR 0.554; everything from 10 upward was identical; **3 peaked at 0.598** and is now the default. Low k wins here because agreement is a weak signal on a small corpus — the lexical arm ORs its terms, so a common word like `time` or `day` drags in a third of a 24-chunk pool, and those chunks then score on both arms and outvote one that is semantically perfect but shares no vocabulary with the query. At `rrf_k=60` that sank `hobbies-direct` from rank 1 to unretrieved. **3 is tuned on 23 cases against one corpus — re-sweep after any change to chunking or corpus size.**
+
+That sweep ran before ties were deterministic. Re-run with deterministic ties (and the greeting gate): `rrf_k=1` 0.804, `rrf_k=3` 0.786, `rrf_k=10` and `60` both 0.764. The gap between 1 and 3 is one query moving one rank, so the default stays at 3.
 
 **What it fixed and what it didn't.** Rank-1 hits went from 8 of 17 to 13 of 17, and `noticed-tired` went from unretrieved to rank 2. Hit rate is unchanged at 88%: `lunch-invite` regressed from rank 3 to unretrieved, trading places with `noticed-tired` — the predicted cost of FTS pointing at the wrong lunch chunk. `apology-late` still misses. **Clean negatives is still 0%**, and hybrid was never going to fix it: `"morning"` matches two chunks lexically, so the greetings still return a full set. That needs item 8.
 
@@ -542,7 +642,7 @@ Item 13 only pays off on a long run, so it stays research-shaped for now. Item 6
 
 ## Known problem: end-of-day is slow, and the cause isn't what it looked like
 
-End of day runs 210s on average and 242s at worst, against Vercel Hobby's hard 300s ceiling. `scripts/tmp-profile-endday.ts` breaks it down by phase (it timestamps the stage callbacks the route already streams, so no instrumentation is needed):
+End of day runs 210s on average and 242s at worst, against Vercel Hobby's hard 300s ceiling. `scripts/dev/tmp-profile-endday.ts` breaks it down by phase (it timestamps the stage callbacks the route already streams, so no instrumentation is needed):
 
 | phase | avg | share | |
 |---|---|---|---|
@@ -588,7 +688,7 @@ The proxy must **pipe the response body through untouched**. End of day streams 
 
 Two separately-deployed projects with a contract between them, so order matters:
 
-1. **Apply migrations** (`supabase/migrations/` — there are four: hybrid search, the end-of-day claim, session retention, username saves). Every one so far is additive — a nullable column, a generated column, new functions — so applying them ahead of the code is harmless. The reverse is not: `lib/chat.ts` calls `match_lore_hybrid` unconditionally, so code deployed before its migration means **every chat 500s**.
+1. **Apply migrations** (`supabase/migrations/`: the baseline, then hybrid search, the end-of-day claim, session retention, username saves). Every one so far is additive — a nullable column, a generated column, new functions — so applying them ahead of the code is harmless. The reverse is not: `lib/chat.ts` calls `match_lore_hybrid` unconditionally, so code deployed before its migration means **every chat 500s**.
 2. **Deploy this repo** (the engine).
 3. **Deploy the personal site** (the playground).
 
@@ -603,7 +703,7 @@ Everything runs on free tiers, with three caveats worth knowing:
 - **Vercel Hobby caps function duration at 300s** — see the end-of-day risk above.
 - **Supabase pauses free projects after 7 days of inactivity.** If nobody played for a week the game broke until the project was manually resumed. A daily Vercel cron now hits `GET /api/cron/keepalive`, which runs one small read. Set `CRON_SECRET` in the Vercel project so only Vercel can call it. The nightly `pg_cron` cleanup doesn't appear to count as activity, since it never leaves the database.
 - **A save is found again by a username**, not a password. It's an identifier, so anyone who guesses one can open — and, by confessing, permanently end — that run. Accepted for a one-field flow on a hobby project; written down so nothing gets built on top of it that needs real auth.
-- **Sessions are deleted after 30 days idle** by a `pg_cron` job, cascading to messages, diary, events and memory. It was 7 days and, worse, keyed on a column nothing maintained — so it deleted every save seven days after it was *created*, regardless of play. See `supabase/migrations/0003_session_retention.sql`.
+- **Sessions are deleted after 30 days idle** by a `pg_cron` job, cascading to messages, diary, events and memory. It was 7 days and, worse, keyed on a column nothing maintained — so it deleted every save seven days after it was *created*, regardless of play. See `supabase/migrations/20260810140030_session_retention.sql`.
 - **Gemini's free tier has daily request caps.** A single day of play is roughly ten LLM calls, so a handful of players can exhaust the daily quota.
 
 There are no accounts and no personal data: whoever holds a `session_id` holds that save, which is why it's a UUID rather than anything guessable.
@@ -615,3 +715,9 @@ There are no accounts and no personal data: whoever holds a `session_id` holds t
 - **Learning first, game second.** Architectural clarity is prioritized over gameplay complexity.
 - **Siloed NPC knowledge.** No NPC-to-NPC gossip system — each character only knows what they experienced directly or were told by the player. Reduces complexity and keeps information flow entirely player-driven.
 - **Narrative coherence matters.** Story details (like Hiyori's exchange program hint) are planted deliberately so late-game twists feel earned, not arbitrary.
+
+---
+
+## License
+
+MIT, see [LICENSE](LICENSE). That covers the code and the original lore in `lore/`.

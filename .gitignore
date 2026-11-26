@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.example
 node_modules/
 .DS_Store
 .mcp.json
@@ -7,3 +9,6 @@ node_modules/
 /out/
 next-env.d.ts
 *.tsbuildinfo
+
+# Local agent settings
+.claude/

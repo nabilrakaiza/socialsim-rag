@@ -14,10 +14,11 @@
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
+import { requireEnv } from '../lib/env';
 import { startNewGame, endDay } from '../lib/orchestrator';
 import type { NPCCharacter } from '../lib/gemma';
 
-const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
+const supabase = createClient(requireEnv('SUPABASE_URL'), requireEnv('SERVICE_ROLE'));
 
 interface Turn {
   character: NPCCharacter;
