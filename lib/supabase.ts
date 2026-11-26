@@ -15,14 +15,12 @@
 
 import { createClient } from '@supabase/supabase-js';
 import type { LoreChunk } from './chunking';
+import { requireEnv } from './env';
 
 // SERVICE_ROLE, not ANON_PUBLIC_KEY — ingestion is a server-side/trusted
 // script writing data, and this key bypasses Row Level Security.
 // Never expose it to a browser/frontend context.
-const supabase = createClient(
-  process.env.SUPABASE_URL ?? '',
-  process.env.SERVICE_ROLE ?? ''
-);
+const supabase = createClient(requireEnv('SUPABASE_URL'), requireEnv('SERVICE_ROLE'));
 
 // Shape returned by match_lore_chunks (single character — the
 // character column is redundant there since you already filtered

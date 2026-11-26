@@ -52,11 +52,12 @@
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
+import { requireEnv } from '../lib/env';
 import { matchLoreHybrid } from '../lib/supabase';
 import { embedText } from '../lib/embeddings';
 import type { NPCCharacter } from '../lib/gemma';
 
-const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
+const supabase = createClient(requireEnv('SUPABASE_URL'), requireEnv('SERVICE_ROLE'));
 
 const CHARACTERS: NPCCharacter[] = ['hiyori', 'shiori', 'yuki'];
 

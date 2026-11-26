@@ -8,10 +8,11 @@
 // ============================================================
 
 import { GoogleGenAI } from '@google/genai';
+import { requireEnv } from './env';
 
 // reads GOOGLE_API_KEY from process.env — dotenv's config() must
 // run before this module is imported (scripts/ingest.ts does this)
-const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY ?? '' });
+const ai = new GoogleGenAI({ apiKey: requireEnv('GOOGLE_API_KEY') });
 
 export async function embedText(text: string): Promise<number[]> {
   const response = await ai.models.embedContent({

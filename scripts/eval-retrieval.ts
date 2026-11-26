@@ -22,6 +22,7 @@ import 'dotenv/config';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { createClient } from '@supabase/supabase-js';
+import { requireEnv } from '../lib/env';
 import { embedText } from '../lib/embeddings';
 import { matchLoreChunks, matchLoreHybrid } from '../lib/supabase';
 import { needsRetrieval } from '../lib/query-intent';
@@ -290,7 +291,7 @@ function summarize(cases: CaseResult[], label: string, k: number, threshold: num
 // actually ingested, so re-chunking or editing a lore file can't quietly rot
 // the golden set.
 async function validateLabels(cases: GoldenCase[]): Promise<void> {
-  const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
+  const supabase = createClient(requireEnv('SUPABASE_URL'), requireEnv('SERVICE_ROLE'));
   const { data, error } = await supabase
     .from('lore_chunks')
     .select('source_file, content, character')

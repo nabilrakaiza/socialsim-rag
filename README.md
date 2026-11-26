@@ -6,6 +6,106 @@ A narrative, RAG-powered dating simulation built as a learning project for retri
 
 ---
 
+## Quick start
+
+This takes about ten minutes from a fresh clone to the game running locally, with the retrieval eval reproduced.
+
+**You need:**
+
+- **Node 22.** With nvm, `nvm use` picks it up from `.nvmrc`.
+- **A running Docker engine**, for the local Supabase stack. Docker Desktop, Colima (`colima start`) or OrbStack all work. If you'd rather not use Docker, see [Without Docker](#without-docker) below.
+- **A Gemini API key.** The free tier at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) is enough.
+
+**1. Install and check.** `verify` runs the typecheck and the offline greeting-gate test. It needs no keys and no database, so it should pass straight after install.
+
+```bash
+npm ci
+```
+
+```bash
+npm run verify
+```
+
+**2. Start the database.** This starts Supabase in Docker and applies every migration in `supabase/migrations/`. The first run pulls images and takes a few minutes.
+
+```bash
+npx supabase start
+```
+
+**3. Create `.env`.**
+
+```bash
+cp .env.example .env
+```
+
+```bash
+npx supabase status -o env
+```
+
+In `.env`, set `SERVICE_ROLE` to the `SERVICE_ROLE_KEY` value from that output and `GOOGLE_API_KEY` to your Gemini key. `SUPABASE_URL` already points at the local stack. A script that runs without them stops with `Missing SERVICE_ROLE: copy .env.example to .env…`, not a stack trace.
+
+**4. Embed the lore and run the retrieval eval.**
+
+```bash
+npm run ingest
+```
+
+```bash
+npm run eval-retrieval -- --hybrid
+```
+
+`ingest` should finish with `Inserted 37 chunks: { hiyori: 24, shiori: 6, yuki: 7 }`. The eval's summary should match `eval/baseline.json` and read `unchanged` against it:
+
+| metric | expected |
+|---|---|
+| hit rate (positive) | 88% |
+| MRR | 0.786 |
+| clean negatives | 100% |
+| mean chunks returned | 3.7 |
+
+Ranking is deterministic (see [Measuring it: the golden set](#measuring-it-the-golden-set)). Similarity values come from the Gemini embedding API, so `mean spread` can move in the third decimal place.
+
+**5. Play.**
+
+```bash
+npm run dev
+```
+
+Then open [localhost:3000](http://localhost:3000). When you're done, `npx supabase stop` shuts the database down.
+
+### Other scripts
+
+| command | what it does | needs |
+|---|---|---|
+| `npm run verify` | typecheck plus the offline greeting-gate test | nothing |
+| `npm run ingest` | re-embed `lore/` into `lore_chunks`. Deletes and re-inserts the static rows, so it's idempotent | `.env`, database |
+| `npm run eval-retrieval` | score retrieval against `eval/retrieval-golden.json`. Add `--hybrid` for what the game runs, `--save` to overwrite the baseline | `.env`, database, ingested lore |
+| `npm run test-query-intent` | held-out check on the greeting gate | nothing |
+| `npm run seed-playthrough` | build a 10-day session by running the real pipeline (~20 min, many Gemini calls) | `.env`, database |
+| `npm run eval-memory` | clustering of a playthrough's generated memory | a seeded playthrough |
+
+`scripts/dev/` holds one-off probes from development. They aren't needed to run or evaluate anything.
+
+### Without Docker
+
+You can use a free hosted Supabase project instead. Create one at [supabase.com](https://supabase.com), then link it and push the migrations, replacing `<project-ref>` with your project's reference ID:
+
+```bash
+npx supabase login
+```
+
+```bash
+npx supabase link --project-ref <project-ref>
+```
+
+```bash
+npx supabase db push
+```
+
+Set `SUPABASE_URL` and `SERVICE_ROLE` in `.env` from Dashboard › Project Settings › API, then continue from step 4.
+
+---
+
 ## Concept
 
 Adrian (CS, NUS) is introduced to Hiyori (Life Sciences, NUS) through his coursemate Shiori. Over 30 in-game days, the player navigates conversations, random real-life events, and a slowly evolving relationship — all while a hidden affection meter and relationship tier quietly drive how each character responds.
@@ -189,6 +289,8 @@ Target size: 150–400 tokens per chunk.
 
 Adrian does **not** have a dynamic knowledge base — only Hiyori, Shiori, and Yuki maintain evolving perceptions of him.
 
+All of `lore/` is original writing for this project. The characters, events and diary entries are fictional and aren't drawn from any existing game, book or real person.
+
 ---
 
 ## Frontend and the API boundary
@@ -283,17 +385,7 @@ All five endings are fully implemented — there is no missing mechanic behind a
 
 ## Running locally
 
-Needs `SUPABASE_URL`, `SERVICE_ROLE` and `GOOGLE_API_KEY` in `.env`.
-
-```bash
-npm run dev            # the game, standalone, on :3000
-npm run ingest         # re-embed lore/ into lore_chunks (idempotent)
-npm run eval-retrieval # score retrieval against eval/retrieval-golden.json
-npm run test-query-intent  # held-out check on the greeting gate
-npm run eval-memory        # clustering of a playthrough's generated memory
-npm run seed-playthrough   # build a 10-day session by running the real pipeline (~20 min)
-npm run typecheck
-```
+Setup and every script are in [Quick start](#quick-start). Notes on what to expect once it's running:
 
 Playing writes real rows to Supabase — `game_state`, `messages`, `events_log`, and per-session `lore_chunks`. They're scoped by `session_id`, so clearing test playthroughs never touches the 37 static lore rows (`is_static = true`).
 
@@ -621,3 +713,9 @@ There are no accounts and no personal data: whoever holds a `session_id` holds t
 - **Learning first, game second.** Architectural clarity is prioritized over gameplay complexity.
 - **Siloed NPC knowledge.** No NPC-to-NPC gossip system — each character only knows what they experienced directly or were told by the player. Reduces complexity and keeps information flow entirely player-driven.
 - **Narrative coherence matters.** Story details (like Hiyori's exchange program hint) are planted deliberately so late-game twists feel earned, not arbitrary.
+
+---
+
+## License
+
+MIT, see [LICENSE](LICENSE). That covers the code and the original lore in `lore/`.
