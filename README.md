@@ -344,14 +344,18 @@ Six of the 23 cases are **negatives that expect nothing at all**. Without them, 
 
 **Results.** Vector-only was the baseline; hybrid retrieval (below) is now what the game runs:
 
-| | vector-only | + hybrid | + greeting gate |
-|---|---|---|---|
-| hit rate (positive) | 88% | 88% | 88% |
-| MRR | 0.471 | 0.598 | **0.859** |
-| positives at rank 1 | 8 of 17 | **13 of 17** | 13 of 17 |
-| clean negatives | 0% | 0% | **100%** |
-| mean spread | 0.067 | 0.096 | 0.106 |
-| mean chunks returned | 4.8 | 5.0 | **3.7** |
+| | vector-only | + hybrid | + greeting gate | + deterministic ties |
+|---|---|---|---|---|
+| hit rate (positive) | 88% | 88% | 88% | 88% |
+| MRR | 0.471 | 0.598 | 0.859 | **0.786** |
+| positives at rank 1 | 8 of 17 | **13 of 17** | 13 of 17 | 10 of 17 |
+| clean negatives | 0% | 0% | **100%** | 100% |
+| mean spread | 0.067 | 0.096 | 0.106 | 0.106 |
+| mean chunks returned | 4.8 | 5.0 | **3.7** | 3.7 |
+
+**The last column is the one to reproduce.** It's what `eval/baseline.json` holds and what a fresh clone scores. The earlier columns were measured on the live database before ties were broken deterministically, and they were partly luck. At `rrf_k=3`, ranks (1st vector, 2nd lexical) and (2nd vector, 1st lexical) give exactly the same fused score, and `ts_rank` often ties on a corpus this small. Every `ORDER BY` sorted on the score alone, so Postgres broke ties by physical row order, which depends on the database's insert history. The same code and lore scored 0.859 on live and 0.815 on a fresh clone.
+
+`20261126000000_hybrid_search_deterministic_ties.sql` breaks every tie by cosine distance, then by `(source_file, chunk_index)`, so every database gives the same ranking. Honest tie-breaking cost three rank-1 hits: `hobbies-direct`, `cycling-invite` and `brother-casual` each had the labelled chunk tied for first and now land at rank 2. In `brother-casual` (*"how's Ren doing"*), for example, the lexical arm can't tell `HIYORI FAMILY` from a diary entry that also mentions Ren, and the diary entry is slightly closer in embedding space (0.570 vs 0.542).
 
 Two results stood out on the vector-only run. **Clean negatives is 0%** — all six greetings and acknowledgements return a full set of chunks, and hybrid doesn't fix that (see below). And **mean chunks returned was 4.8 of a possible 5**, confirming the 0.5 threshold filters essentially nothing.
 
@@ -370,7 +374,7 @@ One surprise: `"durian?"` — a single word — ranks its chunk **first**, becau
 
 ### Hybrid retrieval
 
-`match_lore_hybrid` (see `supabase/migrations/20260810030640_hybrid_search.sql`) runs full-text search alongside the vector search and fuses the two with Reciprocal Rank Fusion. `lib/chat.ts` calls it; `matchLoreChunks` is kept so both paths stay scoreable against the golden set.
+`match_lore_hybrid` (see `supabase/migrations/20260810030640_hybrid_search.sql`, with tie-breaking from `20261126000000_hybrid_search_deterministic_ties.sql`) runs full-text search alongside the vector search and fuses the two with Reciprocal Rank Fusion. `lib/chat.ts` calls it; `matchLoreChunks` is kept so both paths stay scoreable against the golden set.
 
 **Why fusion rather than replacement.** The two methods are wrong about different queries. FTS found both cases vector missed entirely (`"sorry i'm late"`, `"you look tired"`) and returned exactly one candidate for `"durian?"` where vector returned five indistinguishable ones. But FTS is wrong where vector is right: for `"grab lunch"` it matches a diary entry mentioning lunch rather than `FOOD PREFERENCES`, which never uses the word. Neither arm is better — they fail differently, which is the entire premise.
 
@@ -383,6 +387,8 @@ One surprise: `"durian?"` — a single word — ranks its chunk **first**, becau
 3. `FULL OUTER JOIN`, and coalesce the missing **term** to 0, not the missing **rank**. Rank 0 scores `1/k`, which outranks a genuine first place.
 
 **Tuning.** `rrf_k` controls how much rank 1 dominates: low k trusts each arm's own ordering, high k rewards agreement. The literature default of 60 scored MRR 0.554; everything from 10 upward was identical; **3 peaked at 0.598** and is now the default. Low k wins here because agreement is a weak signal on a small corpus — the lexical arm ORs its terms, so a common word like `time` or `day` drags in a third of a 24-chunk pool, and those chunks then score on both arms and outvote one that is semantically perfect but shares no vocabulary with the query. At `rrf_k=60` that sank `hobbies-direct` from rank 1 to unretrieved. **3 is tuned on 23 cases against one corpus — re-sweep after any change to chunking or corpus size.**
+
+That sweep ran before ties were deterministic. Re-run with deterministic ties (and the greeting gate): `rrf_k=1` 0.804, `rrf_k=3` 0.786, `rrf_k=10` and `60` both 0.764. The gap between 1 and 3 is one query moving one rank, so the default stays at 3.
 
 **What it fixed and what it didn't.** Rank-1 hits went from 8 of 17 to 13 of 17, and `noticed-tired` went from unretrieved to rank 2. Hit rate is unchanged at 88%: `lunch-invite` regressed from rank 3 to unretrieved, trading places with `noticed-tired` — the predicted cost of FTS pointing at the wrong lunch chunk. `apology-late` still misses. **Clean negatives is still 0%**, and hybrid was never going to fix it: `"morning"` matches two chunks lexically, so the greetings still return a full set. That needs item 8.
 
