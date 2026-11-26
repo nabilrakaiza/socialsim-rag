@@ -7,8 +7,8 @@
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
-import { buildEndingReflection } from '../lib/ending-reflection';
-import { embedText } from '../lib/embeddings';
+import { buildEndingReflection } from '../../lib/ending-reflection';
+import { embedText } from '../../lib/embeddings';
 
 const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
 const SESSION = 'tmp-test-ending-reflection';

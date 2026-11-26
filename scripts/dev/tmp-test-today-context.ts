@@ -6,9 +6,9 @@
 import 'dotenv/config';
 
 import { createClient } from '@supabase/supabase-js';
-import { sendPlayerMessage } from '../lib/chat';
-import { loadEvents, findBeat, detailSeed } from '../lib/events';
-import type { NPCCharacter } from '../lib/gemma';
+import { sendPlayerMessage } from '../../lib/chat';
+import { loadEvents, findBeat, detailSeed } from '../../lib/events';
+import type { NPCCharacter } from '../../lib/gemma';
 
 const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
 const SESSION_ID = 'tmp-test-today-context-session';

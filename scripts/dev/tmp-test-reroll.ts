@@ -5,8 +5,8 @@
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
-import { startNewGame, startDay, recordEventResponse } from '../lib/orchestrator';
-import { loadEvents } from '../lib/events';
+import { startNewGame, startDay, recordEventResponse } from '../../lib/orchestrator';
+import { loadEvents } from '../../lib/events';
 
 const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
 

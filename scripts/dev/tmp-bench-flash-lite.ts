@@ -8,9 +8,9 @@
 import 'dotenv/config';
 
 import { GoogleGenAI } from '@google/genai';
-import { embedText } from '../lib/embeddings';
-import { matchLoreChunks } from '../lib/supabase';
-import { generateDialogue, type DialogueTurn } from '../lib/gemma';
+import { embedText } from '../../lib/embeddings';
+import { matchLoreChunks } from '../../lib/supabase';
+import { generateDialogue, type DialogueTurn } from '../../lib/gemma';
 
 const MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'] as const;
 const RUNS = Number(process.env.RUNS ?? 5);

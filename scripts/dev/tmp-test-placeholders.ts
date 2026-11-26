@@ -1,6 +1,6 @@
 // Confirms randomized_details actually fills the [placeholder] slots, and that
 // no event can reach the player or the grader with raw bracket text.
-import { loadEvents, applyRandomizedDetails } from '../lib/events';
+import { loadEvents, applyRandomizedDetails } from '../../lib/events';
 
 const events = loadEvents();
 const withPlaceholders = events.filter((e) =>

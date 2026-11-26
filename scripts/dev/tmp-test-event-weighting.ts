@@ -8,7 +8,7 @@ import {
   findBeat,
   detailSeed,
   repeatWeight,
-} from '../lib/events';
+} from '../../lib/events';
 
 let failed = false;
 function check(label: string, pass: boolean, detail = '') {

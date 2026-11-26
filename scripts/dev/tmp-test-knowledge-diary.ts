@@ -4,8 +4,8 @@
 
 import 'dotenv/config';
 
-import { generateKnowledgeUpdate, generateDiaryEntry } from '../lib/gemma';
-import { tierLabel } from '../lib/relationship';
+import { generateKnowledgeUpdate, generateDiaryEntry } from '../../lib/gemma';
+import { tierLabel } from '../../lib/relationship';
 
 async function main() {
   const knowledge = await generateKnowledgeUpdate('hiyori', [

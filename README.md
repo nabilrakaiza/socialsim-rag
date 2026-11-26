@@ -232,15 +232,15 @@ Uniqueness is decided by a case-insensitive index and the resulting `23505` viol
 - 61 static lore chunks embedded and ingested into `lore_chunks`; retrieval manually verified against real queries
 - Gemma integration for NPC dialogue (`lib/gemma.ts`'s `generateDialogue`), grounded in retrieved lore + relationship stage
 - Relationship tier/stage + diary-trigger logic (`lib/relationship.ts`)
-- End-of-day batch evaluation (`lib/batch-eval.ts`'s `runEndOfDayBatchEval`) — updates per-NPC knowledge chunks, affection score, relationship stage, and diary entries (with RAG re-indexing). Verified end-to-end against the live DB + Gemini API (`scripts/tmp-test-batch-eval.ts`); independent Gemini calls run concurrently with a retry-once-after-60s wrapper for rate-limit resilience
-- Retrieval scoping fix — `match_lore_chunks`/`match_lore_multi_character` now filter by `is_static`/`session_id` (see `lore_chunks` table design above), verified against real dynamic + static data (`scripts/tmp-test-retrieval-scoping.ts`)
-- Single-turn chat handling (`lib/chat.ts`'s `sendPlayerMessage`) — retrieval + `generateDialogue` + persistence to `messages`, verified end-to-end (`scripts/tmp-test-chat.ts`), including that history stays correctly scoped to one character and one conversation continues coherently across turns
-- Daily schedule generation (`lib/schedule.ts`'s `generateDailySchedule`), per the Schedule Generation section above, verified via `scripts/tmp-test-schedule.ts`
-- Random event system (`lib/events.ts`), per the Event System section above — normal-day segment resolution, extended-event triggering, and in-arc sub-event resolution. Verified by simulation (`scripts/tmp-test-events.ts`, `scripts/tmp-test-arc.ts`): across 500 simulated runs of all 13 arcs, every sub-event lands and no final-day beat ever fires off the final day
+- End-of-day batch evaluation (`lib/batch-eval.ts`'s `runEndOfDayBatchEval`) — updates per-NPC knowledge chunks, affection score, relationship stage, and diary entries (with RAG re-indexing). Verified end-to-end against the live DB + Gemini API (`scripts/dev/tmp-test-batch-eval.ts`); independent Gemini calls run concurrently with a retry-once-after-60s wrapper for rate-limit resilience
+- Retrieval scoping fix — `match_lore_chunks`/`match_lore_multi_character` now filter by `is_static`/`session_id` (see `lore_chunks` table design above), verified against real dynamic + static data (`scripts/dev/tmp-test-retrieval-scoping.ts`)
+- Single-turn chat handling (`lib/chat.ts`'s `sendPlayerMessage`) — retrieval + `generateDialogue` + persistence to `messages`, verified end-to-end (`scripts/dev/tmp-test-chat.ts`), including that history stays correctly scoped to one character and one conversation continues coherently across turns
+- Daily schedule generation (`lib/schedule.ts`'s `generateDailySchedule`), per the Schedule Generation section above, verified via `scripts/dev/tmp-test-schedule.ts`
+- Random event system (`lib/events.ts`), per the Event System section above — normal-day segment resolution, extended-event triggering, and in-arc sub-event resolution. Verified by simulation (`scripts/dev/tmp-test-events.ts`, `scripts/dev/tmp-test-arc.ts`): across 500 simulated runs of all 13 arcs, every sub-event lands and no final-day beat ever fires off the final day
 - Event content expanded to 13 extended arcs (up from 3) spanning the affection range, plus per-arc ambient sub-events so an active arc actually fills its days
 
 - Ending resolution (`lib/endings.ts`) and free-text event scoring (`generateEventOutcome`), with skipping an event scored deterministically instead — an unanswered event never reaches the LLM, which grades silence as a poor response and would conflate not engaging with fumbling
-- Game loop orchestrator (`lib/orchestrator.ts`) — the full daily flow, with all extended-event state reconstructed from `events_log` rather than stored. Verified end-to-end against the live DB and API, including that an arc's start row isn't mistaken for an unanswered beat, and that `affects` routes deltas to the right meter (`scripts/tmp-test-orchestrator*.ts`, `scripts/tmp-test-yuki-routing.ts`)
+- Game loop orchestrator (`lib/orchestrator.ts`) — the full daily flow, with all extended-event state reconstructed from `events_log` rather than stored. Verified end-to-end against the live DB and API, including that an arc's start row isn't mistaken for an unanswered beat, and that `affects` routes deltas to the right meter (`scripts/dev/tmp-test-orchestrator*.ts`, `scripts/dev/tmp-test-yuki-routing.ts`)
 - Events now feed each NPC's knowledge base, attributed by `participant` so a character only learns from what she was actually present for
 - Confession (`confess()`), resolving immediately at any point in the run
 
@@ -267,7 +267,7 @@ Uniqueness is decided by a case-insensitive index and the resulting `23505` viol
 - Hybrid retrieval (`match_lore_hybrid`) — Postgres full-text search fused with vector search via Reciprocal Rank Fusion, now the production path in `lib/chat.ts`. Rank-1 hits on the golden set went from 8 of 17 to 13 of 17. See [Hybrid retrieval](#hybrid-retrieval)
 - Retrieval evaluation harness (`npm run eval-retrieval`) — 23 hand-labelled cases scored on hit rate, MRR, clean negatives and similarity spread, with a saved baseline and per-run deltas. Labels are validated against the live corpus before scoring, since a label matching nothing scores identically to a retrieval failure
 - `lore_chunks.source_file` stores the bare filename instead of an absolute path, so anything comparing against it works on any machine and on Vercel
-- The ending explains itself (`lib/ending-reflection.ts`) — the accumulated diary and knowledge chunks are finally read back to the player instead of only feeding retrieval. See [Why the ending happened](#why-the-ending-happened). Verified against a seeded end-state (`scripts/tmp-test-ending-reflection.ts`) and, for the first time, in the browser: the closing entry, the collapsible archive, and the conditional Yuki epilogue all render
+- The ending explains itself (`lib/ending-reflection.ts`) — the accumulated diary and knowledge chunks are finally read back to the player instead of only feeding retrieval. See [Why the ending happened](#why-the-ending-happened). Verified against a seeded end-state (`scripts/dev/tmp-test-ending-reflection.ts`) and, for the first time, in the browser: the closing entry, the collapsible archive, and the conditional Yuki epilogue all render
 
 **Next up:**
 - **Play a full run.** Day 2 onward has never completed on a working build — the one previous multi-day attempt was on the build with the double-fire bug and had to be deleted. Five things have changed underneath the game since (the day-scoring guard, attribution, `notable`, temporal context, retention) and none have been exercised across a real run. Arc continuation across days, the 15-real-minutes-per-in-game-hour clock, and an ending reached by playing rather than seeding are all still unknown
@@ -542,7 +542,7 @@ Item 13 only pays off on a long run, so it stays research-shaped for now. Item 6
 
 ## Known problem: end-of-day is slow, and the cause isn't what it looked like
 
-End of day runs 210s on average and 242s at worst, against Vercel Hobby's hard 300s ceiling. `scripts/tmp-profile-endday.ts` breaks it down by phase (it timestamps the stage callbacks the route already streams, so no instrumentation is needed):
+End of day runs 210s on average and 242s at worst, against Vercel Hobby's hard 300s ceiling. `scripts/dev/tmp-profile-endday.ts` breaks it down by phase (it timestamps the stage callbacks the route already streams, so no instrumentation is needed):
 
 | phase | avg | share | |
 |---|---|---|---|

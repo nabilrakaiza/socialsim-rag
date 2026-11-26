@@ -13,7 +13,7 @@
 import 'dotenv/config';
 
 import { createClient } from '@supabase/supabase-js';
-import { endDay } from '../lib/orchestrator';
+import { endDay } from '../../lib/orchestrator';
 
 const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
 const SESSION_ID = 'tmp-test-yuki-routing-session';

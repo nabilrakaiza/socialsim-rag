@@ -4,8 +4,8 @@
 import 'dotenv/config';
 
 import { createClient } from '@supabase/supabase-js';
-import { startDay } from '../lib/orchestrator';
-import { loadEvents, findBeat, detailSeed } from '../lib/events';
+import { startDay } from '../../lib/orchestrator';
+import { loadEvents, findBeat, detailSeed } from '../../lib/events';
 
 const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
 const SESSION_ID = 'tmp-test-startday-weighting-session';

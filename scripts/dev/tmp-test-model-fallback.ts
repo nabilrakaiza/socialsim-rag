@@ -5,7 +5,7 @@
 
 import 'dotenv/config';
 
-import { generateDialogue } from '../lib/gemma';
+import { generateDialogue } from '../../lib/gemma';
 
 type Sabotage = 'quota' | 'hang' | 'none';
 

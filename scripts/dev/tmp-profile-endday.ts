@@ -19,8 +19,8 @@
 
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
-import { startNewGame, endDay } from '../lib/orchestrator';
-import type { EndDayStage } from '../lib/orchestrator';
+import { startNewGame, endDay } from '../../lib/orchestrator';
+import type { EndDayStage } from '../../lib/orchestrator';
 
 const supabase = createClient(process.env.SUPABASE_URL ?? '', process.env.SERVICE_ROLE ?? '');
 
