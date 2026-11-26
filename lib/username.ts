@@ -29,7 +29,7 @@ export class InvalidUsernameError extends Error {}
  *
  * Returns the name as the player should see it stored. Lookups compare
  * case-insensitively (see the unique index in
- * supabase/migrations/0004_username_saves.sql), so casing is preserved for
+ * supabase/migrations/20260810141249_username_saves.sql), so casing is preserved for
  * display rather than being flattened here.
  */
 export function normalizeUsername(raw: unknown): string {

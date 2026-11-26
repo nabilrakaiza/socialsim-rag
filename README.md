@@ -227,7 +227,7 @@ Uniqueness is decided by a case-insensitive index and the resulting `23505` viol
 - Core game design (daily flow, schedule/time system, event system, ending conditions)
 - Full lore documents for all 4 characters
 - `events.json` finalized with capped extended-event durations and sub-events
-- Supabase schema live (`lore_chunks`, `game_state`, `messages`, `diary_entries`, `events_log`) — note the live `lore_chunks` table and RPCs diverged from the originally drafted `supabase/schema.sql` (see `lib/supabase.ts` for the current, accurate contract)
+- Supabase schema live (`lore_chunks`, `game_state`, `messages`, `diary_entries`, `events_log`), reproducible from `supabase/migrations/` on an empty project; `supabase/schema.sql` is a commented snapshot of the same end state
 - Full RAG ingestion pipeline built and verified end-to-end: `lib/chunking.ts` → `lib/embeddings.ts` → `lib/supabase.ts` → `scripts/ingest.ts` → `scripts/test-retrieval.ts`
 - 61 static lore chunks embedded and ingested into `lore_chunks`; retrieval manually verified against real queries
 - Gemma integration for NPC dialogue (`lib/gemma.ts`'s `generateDialogue`), grounded in retrieved lore + relationship stage
@@ -370,7 +370,7 @@ One surprise: `"durian?"` — a single word — ranks its chunk **first**, becau
 
 ### Hybrid retrieval
 
-`match_lore_hybrid` (see `supabase/migrations/0001_hybrid_search.sql`) runs full-text search alongside the vector search and fuses the two with Reciprocal Rank Fusion. `lib/chat.ts` calls it; `matchLoreChunks` is kept so both paths stay scoreable against the golden set.
+`match_lore_hybrid` (see `supabase/migrations/20260810030640_hybrid_search.sql`) runs full-text search alongside the vector search and fuses the two with Reciprocal Rank Fusion. `lib/chat.ts` calls it; `matchLoreChunks` is kept so both paths stay scoreable against the golden set.
 
 **Why fusion rather than replacement.** The two methods are wrong about different queries. FTS found both cases vector missed entirely (`"sorry i'm late"`, `"you look tired"`) and returned exactly one candidate for `"durian?"` where vector returned five indistinguishable ones. But FTS is wrong where vector is right: for `"grab lunch"` it matches a diary entry mentioning lunch rather than `FOOD PREFERENCES`, which never uses the word. Neither arm is better — they fail differently, which is the entire premise.
 
@@ -588,7 +588,7 @@ The proxy must **pipe the response body through untouched**. End of day streams 
 
 Two separately-deployed projects with a contract between them, so order matters:
 
-1. **Apply migrations** (`supabase/migrations/` — there are four: hybrid search, the end-of-day claim, session retention, username saves). Every one so far is additive — a nullable column, a generated column, new functions — so applying them ahead of the code is harmless. The reverse is not: `lib/chat.ts` calls `match_lore_hybrid` unconditionally, so code deployed before its migration means **every chat 500s**.
+1. **Apply migrations** (`supabase/migrations/`: the baseline, then hybrid search, the end-of-day claim, session retention, username saves). Every one so far is additive — a nullable column, a generated column, new functions — so applying them ahead of the code is harmless. The reverse is not: `lib/chat.ts` calls `match_lore_hybrid` unconditionally, so code deployed before its migration means **every chat 500s**.
 2. **Deploy this repo** (the engine).
 3. **Deploy the personal site** (the playground).
 
@@ -603,7 +603,7 @@ Everything runs on free tiers, with three caveats worth knowing:
 - **Vercel Hobby caps function duration at 300s** — see the end-of-day risk above.
 - **Supabase pauses free projects after 7 days of inactivity.** If nobody played for a week the game broke until the project was manually resumed. A daily Vercel cron now hits `GET /api/cron/keepalive`, which runs one small read. Set `CRON_SECRET` in the Vercel project so only Vercel can call it. The nightly `pg_cron` cleanup doesn't appear to count as activity, since it never leaves the database.
 - **A save is found again by a username**, not a password. It's an identifier, so anyone who guesses one can open — and, by confessing, permanently end — that run. Accepted for a one-field flow on a hobby project; written down so nothing gets built on top of it that needs real auth.
-- **Sessions are deleted after 30 days idle** by a `pg_cron` job, cascading to messages, diary, events and memory. It was 7 days and, worse, keyed on a column nothing maintained — so it deleted every save seven days after it was *created*, regardless of play. See `supabase/migrations/0003_session_retention.sql`.
+- **Sessions are deleted after 30 days idle** by a `pg_cron` job, cascading to messages, diary, events and memory. It was 7 days and, worse, keyed on a column nothing maintained — so it deleted every save seven days after it was *created*, regardless of play. See `supabase/migrations/20260810140030_session_retention.sql`.
 - **Gemini's free tier has daily request caps.** A single day of play is roughly ten LLM calls, so a handful of players can exhaust the daily quota.
 
 There are no accounts and no personal data: whoever holds a `session_id` holds that save, which is why it's a UUID rather than anything guessable.

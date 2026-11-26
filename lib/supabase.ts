@@ -112,7 +112,7 @@ export async function matchLoreChunks(
 }
 
 // Full-text search fused with vector search — see
-// supabase/migrations/0001_hybrid_search.sql for why and how.
+// supabase/migrations/20260810030640_hybrid_search.sql for why and how.
 //
 // Deliberately a separate function rather than a flag on matchLoreChunks: the
 // point is to score both paths against the same golden set, and that needs
@@ -151,7 +151,7 @@ export async function matchLoreHybrid(
 
 // Claims the current day for end-of-day scoring. Returns the day on success,
 // null when it is already claimed — see
-// supabase/migrations/0002_end_of_day_claim.sql for why the atomicity has to
+// supabase/migrations/20260810040813_end_of_day_claim.sql for why the atomicity has to
 // live in SQL rather than in a read-then-write here.
 export async function claimDayForScoring(sessionId: string): Promise<number | null> {
   const { data, error } = await supabase.rpc('claim_day_for_scoring', {

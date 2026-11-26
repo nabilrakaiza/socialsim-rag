@@ -1,19 +1,15 @@
 -- ============================================================
--- affection-engine: Supabase Schema
+-- affection-engine: Supabase schema snapshot
 -- ============================================================
--- Reference copy of the live schema — verified against the actual
--- project via Supabase MCP (list_tables/list_extensions/execute_sql)
--- on 2026-07-13, refreshed 2026-08-10 for hybrid retrieval.
+-- A readable, commented picture of the live schema. It is NOT the
+-- way to build a database: use the migrations in supabase/migrations/
+-- (see README "Quick start"), which apply in order on an empty
+-- project and were checked to reproduce the live catalog exactly on
+-- 2026-11-26 (columns, indexes, constraints, functions, trigger,
+-- RLS and the cron job).
 --
--- Changes since are tracked as files in supabase/migrations/ and
--- folded back into this file; this stays the single readable
--- snapshot of what is actually live. Every statement below already exists live (tables,
--- indexes, FKs, RLS, both RPCs, and the cron job), most of it built
--- incrementally in the SQL editor before this file was consolidated.
---
--- DO NOT run this end-to-end — every `create table`/`create
--- extension` will error with "already exists". If you need to
--- reproduce this on a fresh project, add `if not exists` first.
+-- When a migration changes the schema, fold the change back into
+-- this file so the two stay in step.
 -- ============================================================
 
 -- 1. EXTENSIONS
@@ -179,29 +175,27 @@ create index on public.events_log (session_id);
 -- Filters by character, then returns top-k by cosine similarity.
 
 create or replace function public.match_lore_chunks(
-  query_embedding    vector(768),
-  match_character    text,
-  match_count        int     default 5,
-  similarity_threshold float  default 0.5
+  query_embedding       vector,
+  match_character       text,
+  match_session_id      text default null,
+  match_count           integer default 5,
+  similarity_threshold  double precision default 0.5
 )
-returns table (
-  id          uuid,
-  content     text,
-  source_file text,
-  similarity  float
-)
-language sql stable
+returns table (id uuid, content text, source_file text, similarity double precision)
+language sql
+stable
 as $$
   select
-    public.lore_chunks.id,
-    public.lore_chunks.content,
-    public.lore_chunks.source_file,
-    1 - (public.lore_chunks.embedding <=> query_embedding) as similarity
+    lore_chunks.id,
+    lore_chunks.content,
+    lore_chunks.source_file,
+    1 - (lore_chunks.embedding <=> query_embedding) as similarity
   from public.lore_chunks
   where
-    public.lore_chunks.character = match_character
-    and 1 - (public.lore_chunks.embedding <=> query_embedding) > similarity_threshold
-  order by public.lore_chunks.embedding <=> query_embedding
+    lore_chunks.character = match_character
+    and (lore_chunks.is_static = true or lore_chunks.session_id = match_session_id)
+    and 1 - (lore_chunks.embedding <=> query_embedding) > similarity_threshold
+  order by lore_chunks.embedding <=> query_embedding
   limit match_count;
 $$;
 
@@ -212,31 +206,28 @@ $$;
 -- matchLoreMultiCharacter) — for scenes involving more than one NPC.
 
 create or replace function public.match_lore_multi_character(
-  query_embedding    vector(768),
-  match_characters   text[],
-  match_count        int     default 8,
-  similarity_threshold float  default 0.5
+  query_embedding       vector,
+  match_characters      text[],
+  match_session_id      text default null,
+  match_count           integer default 8,
+  similarity_threshold  double precision default 0.5
 )
-returns table (
-  id          uuid,
-  content     text,
-  source_file text,
-  chara       text,
-  similarity  float
-)
-language sql stable
+returns table (id uuid, content text, source_file text, chara text, similarity double precision)
+language sql
+stable
 as $$
   select
-    public.lore_chunks.id,
-    public.lore_chunks.content,
-    public.lore_chunks.source_file,
-    public.lore_chunks.character,
-    1 - (public.lore_chunks.embedding <=> query_embedding) as similarity
+    lore_chunks.id,
+    lore_chunks.content,
+    lore_chunks.source_file,
+    lore_chunks.character,
+    1 - (lore_chunks.embedding <=> query_embedding) as similarity
   from public.lore_chunks
   where
-    public.lore_chunks.character = any(match_characters)
-    and 1 - (public.lore_chunks.embedding <=> query_embedding) > similarity_threshold
-  order by public.lore_chunks.embedding <=> query_embedding
+    lore_chunks.character = any(match_characters)
+    and (lore_chunks.is_static = true or lore_chunks.session_id = match_session_id)
+    and 1 - (lore_chunks.embedding <=> query_embedding) > similarity_threshold
+  order by lore_chunks.embedding <=> query_embedding
   limit match_count;
 $$;
 
@@ -275,7 +266,7 @@ alter table public.events_log enable row level security;
 -- actively it was being played. For a thirty-day game that is the
 -- expected path, not an edge case.
 --
--- Fixed in supabase/migrations/0003_session_retention.sql: a
+-- Fixed in supabase/migrations/20260810140030_session_retention.sql: a
 -- before-update trigger keeps updated_at honest (section 11), and
 -- the window widened to 30 days now that it means what it says.
 -- Storage is not the constraint here — a whole session is roughly
@@ -329,13 +320,13 @@ create trigger game_state_set_updated_at
 -- different queries, which is why they are fused rather than one
 -- replacing the other. Full rationale, including the three
 -- implementation traps, lives in
--- supabase/migrations/0001_hybrid_search.sql.
+-- supabase/migrations/20260810030640_hybrid_search.sql.
 --
 -- rrf_k defaults to 3, not the literature's 60: swept against
 -- eval/retrieval-golden.json, 60 scored MRR 0.554 and 3 scored
 -- 0.598. Re-sweep after any change to chunking or corpus size.
 
--- (definition kept in supabase/migrations/0001_hybrid_search.sql —
+-- (definition kept in supabase/migrations/20260810030640_hybrid_search.sql —
 -- reproduced there in full with its reasoning, rather than
 -- duplicated here where the two copies would drift apart)
 
@@ -362,7 +353,7 @@ create trigger game_state_set_updated_at
 --   design, and a claim held through a transient model error would
 --   strand the session permanently.
 --
--- Definitions live in supabase/migrations/0002_end_of_day_claim.sql.
+-- Definitions live in supabase/migrations/20260810040813_end_of_day_claim.sql.
 
 
 -- 13. USERNAME SAVES

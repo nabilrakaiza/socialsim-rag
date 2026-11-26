@@ -377,7 +377,7 @@ export async function endDay(
   // playthrough lost its save to exactly that.
   //
   // The claim is atomic in SQL rather than checked here; see
-  // supabase/migrations/0002_end_of_day_claim.sql.
+  // supabase/migrations/20260810040813_end_of_day_claim.sql.
   const claimedDay = await claimDayForScoring(sessionId);
   if (claimedDay === null) {
     throw new Error('end of day is already running for this session');

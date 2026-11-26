@@ -105,7 +105,7 @@ export async function sendPlayerMessage(input: SendMessageInput): Promise<SendMe
   // conversational message — every chunk lands within ~0.03 of every other, so
   // the ordering is close to arbitrary. Fusing full-text search with the
   // vector arm took rank-1 hits from 8 of 17 golden cases to 13.
-  // See supabase/migrations/0001_hybrid_search.sql.
+  // See supabase/migrations/20260810030640_hybrid_search.sql.
   const retrievedLoreChunks = needsRetrieval(input.playerMessage)
     ? await matchLoreHybrid(
         await embedText(input.playerMessage),
