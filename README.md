@@ -1,5 +1,7 @@
 # social-sim-rag
 
+[![verify](https://github.com/nabilrakaiza/socialsim-rag/actions/workflows/verify.yml/badge.svg)](https://github.com/nabilrakaiza/socialsim-rag/actions/workflows/verify.yml)
+
 A narrative, RAG-powered dating simulation built as a learning project for retrieval-augmented generation (RAG) architecture. The gameplay is a wrapper — the real point of this project is to design and implement a working RAG pipeline end to end: chunking, embedding, vector storage, retrieval, and grounded LLM generation.
 
 > Working title: `social-sim-rag'
