@@ -322,13 +322,18 @@ create trigger game_state_set_updated_at
 -- implementation traps, lives in
 -- supabase/migrations/20260810030640_hybrid_search.sql.
 --
--- rrf_k defaults to 3, not the literature's 60: swept against
--- eval/retrieval-golden.json, 60 scored MRR 0.554 and 3 scored
--- 0.598. Re-sweep after any change to chunking or corpus size.
+-- rrf_k defaults to 3, not the literature's 60. Re-sweep after any
+-- change to chunking or corpus size.
+--
+-- Every ranking breaks ties by cosine distance, then by
+-- (source_file, chunk_index), so results are identical in every
+-- database. Before that, ties fell to physical row order and the
+-- same lore scored differently on live and on a fresh clone.
 
--- (definition kept in supabase/migrations/20260810030640_hybrid_search.sql —
--- reproduced there in full with its reasoning, rather than
--- duplicated here where the two copies would drift apart)
+-- (current definition: supabase/migrations/20261126000000_hybrid_search_deterministic_ties.sql,
+-- applied to live 2026-11-26. The reasoning behind each arm and the
+-- fusion is in 20260810030640_hybrid_search.sql. Neither is
+-- duplicated here, where the copies would drift apart.)
 
 
 -- 12. END-OF-DAY CLAIM
